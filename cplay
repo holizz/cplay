@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.48"
+__version__ = "cplay 1.49pre1"
 
 """
 cplay - A curses front-end for various audio players
@@ -303,7 +303,7 @@ class RootWindow(Window):
         keymap.bind('c', self.win_counter.toggle_mode, ())
         keymap.bind('Q', app.quit, ())
         keymap.bind('q', self.command_quit, ())
-        keymap.bind('v', app.toggle_mixer, ())
+        keymap.bind('v', app.mixer, ("toggle",))
 
     def command_quit(self):
         app.do_input_hook = self.do_quit
@@ -1527,43 +1527,39 @@ class Application:
         else: self.play(self.player.entry, self.player.offset)
 
     def inc_volume(self):
-        self.get_volume() and self.set_volume(min(100, self.volume+3))
+        self.mixer("cue", 1)
 
     def dec_volume(self):
-        self.get_volume() and self.set_volume(max(0, self.volume-3))
+        self.mixer("cue", -1)
 
     def key_volume(self, ch):
-        self.set_volume((ch & 0x0f)*10)
+        self.mixer("set", (ch & 0x0f)*10)
 
-    def open_mixer(self):
-        import oss
-        self.channels = self.channels or \
-            [['MASTER', oss.SOUND_MIXER_VOLUME], ['PCM', oss.SOUND_MIXER_PCM]]
-        return oss.open_mixer(), self.channels[0]
+    def mixer(self, cmd=None, arg=None):
+        try: self._mixer(cmd, arg)
+        except Exception, e: app.status(e, 2)
 
-    def get_volume(self):
+    def _mixer(self, cmd, arg):
         try:
-            mixer, (name, ch) = self.open_mixer()
-            self.volume = mixer.read_channel(ch)[0]
-            mixer.close()
-            app.status(_("%s volume %s%%") % (name, self.volume), 1)
-            return 1
-        except Exception, e:
-            app.status(e, 2)
-
-    def set_volume(self, v):
-        try:
-            mixer, (name, ch) = self.open_mixer()
-            mixer.write_channel(ch, v)
-            mixer.close()
-            self.get_volume()
-        except Exception, e:
-            app.status(e, 2)
-
-    def toggle_mixer(self):
-        self.get_volume()
-        self.channels and self.channels.insert(0, self.channels.pop())
-        self.get_volume()
+            import ossaudiodev
+            mixer = ossaudiodev.openmixer()
+            get, set = mixer.get, mixer.set
+            self.channels = self.channels or \
+                [['MASTER', ossaudiodev.SOUND_MIXER_VOLUME],
+                 ['PCM', ossaudiodev.SOUND_MIXER_PCM]]
+        except ImportError:
+            import oss
+            mixer = oss.open_mixer()
+            get, set = mixer.read_channel, mixer.write_channel
+            self.channels = self.channels or \
+                [['MASTER', oss.SOUND_MIXER_VOLUME],
+                 ['PCM', oss.SOUND_MIXER_PCM]]
+        if cmd is "toggle": self.channels.insert(0, self.channels.pop())
+        name, channel = self.channels[0]
+        if cmd is "cue": arg = min(100, max(0, get(channel)[0] + arg))
+        if cmd in ["set", "cue"]: set(channel, (arg, arg))
+        app.status(_("%s volume %s%%") % (name, get(channel)[0]), 1)
+        mixer.close()
 
     def show_input(self):
         n = len(self.input_prompt)+1
@@ -1652,7 +1648,7 @@ def main():
         for opt, optarg in opts:
             if opt == "-r": app.win_playlist.command_toggle_repeat()
             if opt == "-R": app.win_playlist.command_toggle_random()
-            if opt == "-v": app.toggle_mixer()
+            if opt == "-v": app.mixer("toggle")
         if args or playlist:
             for i in args or playlist:
                 app.win_playlist.add(os.path.abspath(i))
@@ -1674,7 +1670,8 @@ PLAYERS = [
     TimeOffsetPlayer("madplay -v --no-tty-control --display-time=remaining -s %d %s", "\.mp[123]$"),
     NoOffsetPlayer("mikmod -q -p0 %s", "\.(mod|xm|fm|s3m|med|col|669|it|mtm)$"),
     NoOffsetPlayer("xmp -q %s", "\.(mod|xm|fm|s3m|med|col|669|it|mtm|stm)$"),
-    NoOffsetPlayer("play %s", "\.(aiff|au|cdr|mp3|ogg|wav)$")
+    NoOffsetPlayer("play %s", "\.(aiff|au|cdr|mp3|ogg|wav)$"),
+    NoOffsetPlayer("speexdec %s", "\.spx$")
     ]
 
 def VALID_SONG(name):
@@ -1683,11 +1680,12 @@ def VALID_SONG(name):
             return 1
 
 def VALID_PLAYLIST(name):
-    if re.match("\.(m3u|pls)$", name, re.I):
+    if re.search("\.(m3u|pls)$", name, re.I):
         return 1
 
-try: execfile("/etc/cplayrc")
-except IOError: pass
+for rc in [os.path.expanduser("~/.cplayrc"), "/etc/cplayrc"]:
+    try: execfile(rc); break
+    except IOError: pass
 
 # ------------------------------------------
 if __name__ == "__main__": main()

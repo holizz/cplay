@@ -1,3 +1,30 @@
+2003-09-13  Ulf Betlehem  <flu@iki.fi>
+
+	*** 1.49pre1 ***
+	
+	* cplay:
+	- support and prefer ossaudiodev (dorphell)
+
+2003-09-01  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay:
+	- fixed playlist identification for 1.48 (Jean-Nicolas Kuttler)
+
+2003-08-28  Ulf Betlehem  <flu@iki.fi>
+
+	* Makefile:
+	- cplayrc generation
+
+	* cplay.1:
+	- execute both /etc/cplayrc and ~/.cplayrc
+	- ignore /etc/cplayrc if ~/.cplayrc exists
+	- speex
+	- xmp
+
+	* README:
+	- speex
+	- ~/.cplayrc
+
 2003-08-26  Ulf Betlehem  <flu@iki.fi>
 
 	*** 1.48 released ***
