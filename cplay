@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.45"
+__version__ = "cplay 1.46pre1"
 
 """
 cplay - A curses front-end for various audio players
@@ -725,6 +725,7 @@ class PlaylistWindow(ListWindow):
     def __init__(self, parent):
         ListWindow.__init__(self, parent)
         self.name = _("Playlist")
+	self.pathname = None
         self.repeat = 0
         self.random = 0
         self.random_buffer = []
@@ -788,6 +789,7 @@ class PlaylistWindow(ListWindow):
                     app.status(_("Added: %s") % entry.filename, 1)
                     self.buffer.append(entry)
                 file.close()
+		self.pathname = pathname
             except IOError:
                 app.status(_("IOError"), 1)
         else:
@@ -967,7 +969,8 @@ class PlaylistWindow(ListWindow):
             app.status(str(e), 2)
 
     def command_save_playlist(self):
-        self.start_input(_("Save playlist"), app.win_filelist.cwd)
+	default = self.pathname or app.win_filelist.cwd
+        self.start_input(_("Save playlist"), default)
         self.do_input_hook = None
         self.stop_input_hook = self.stop_save_playlist
         self.do_input()
@@ -976,16 +979,17 @@ class PlaylistWindow(ListWindow):
         if reason == _("cancel") or not self.input_string:
             app.status(_("cancel"), 1)
             return
-        filename = self.input_string
-        if filename[0] != '/':
-            filename = "%s%s" % (app.win_filelist.cwd, filename)
-        if not VALID_PLAYLIST(filename):
-            filename = "%s%s" % (filename, ".m3u")
+        pathname = self.input_string
+        if pathname[0] != '/':
+            pathname = "%s%s" % (app.win_filelist.cwd, pathname)
+        if not VALID_PLAYLIST(pathname):
+            pathname = "%s%s" % (pathname, ".m3u")
         try:
-            file = open(filename, "w")
+            file = open(pathname, "w")
             for entry in self.buffer:
                 file.write("%s\n" % entry.pathname)
             file.close()
+	    self.pathname = pathname
             app.status(_("ok"), 1)
         except IOError:
             app.status(_("Cannot write playlist!"), 1)
@@ -1277,7 +1281,6 @@ class Application:
             import fcntl
             fd = os.open(MIXER, 0)
             self.volume = ord(fcntl.ioctl(fd, self.mixer_read, "."))
-	    # 80044d04
             os.close(fd)
             return 1
         except:

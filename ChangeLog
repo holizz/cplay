@@ -1,3 +1,7 @@
+2002-03-31  Ulf Betlehem  <flu@iki.fi>
+	
+	* cplay (1.46pre1)
+	- remember playlist filename (Patrice Neff)
 2002-03-24  Ulf Betlehem  <flu@iki.fi>
 	
 	*** 1.45 released ***
