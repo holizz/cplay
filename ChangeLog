@@ -1,3 +1,13 @@
+2001-03-15  Ulf Betlehem  <flu@iki.fi>
+
+	*** 1.43 released ***
+	
+	* cplay:
+	- partial support for splay
+	- commandline arguments: repeat/random (Gerald Stieglbauer)
+	- volume fine tuning via +/- (Martin Michlmayr)
+	- simplified player framework
+	- mark/clear regexp
 2001-01-18  Ulf Betlehem  <flu@iki.fi>
 
 	*** 1.42 released ***
@@ -225,4 +235,3 @@
 1998-04-18  Ulf Betlehem  <flu@iki.fi>
 
 	* cplay: New file.
-

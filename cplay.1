@@ -3,7 +3,7 @@
 .\" It was originally written for Debian GNU/Linux (but may be used
 .\" by others).
 .\"
-.TH CPLAY 1 "December 2000"
+.TH CPLAY 1 "March 2001"
 
 .SH NAME
 .PP
@@ -11,7 +11,7 @@ cplay \- a front-end for various audio players
 
 .SH SYNOPSIS
 .PP
-\fBcplay\fR [ \fIfile\fP | \fIplaylist.m3u\fP ] ...
+\fBcplay\fR [-options] [ \fIfile\fP | \fIplaylist.m3u\fP ] ...
 
 .SH DESCRIPTION
 .PP
@@ -26,18 +26,23 @@ specify an audio file,
 .B cplay
 automatically adds it to the playlist which can be accessed
 by pressing the tabulator key.
-
 .PP
 Currently, the folloging audio formats are supported: MP3 (through
 mpg123), Ogg Vorbis (through ogg123), and WAV, AU, CDR and AIFF
 (through sox).
 
+.SH OPTIONS
+.IP \fB-r
+Toggles playlist \fIrepeat\fP mode
+.IP \fB-R
+Toggles playlist \fIrandom\fP mode
 
 .SH SEE ALSO
 .PP
-.BR sox (1),
-.BR mpg123 (1)
-.BR ogg123 (1)
+.BR ogg123 (1),
+.BR mpg123 (1),
+.BR splay (1),
+.BR sox (1)
 
 .SH AUTHOR
 .PP

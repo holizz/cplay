@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.43pre3"
+__version__ = "cplay 1.43"
 
 """
 cplay - A curses front-end for various audio players
@@ -37,8 +37,10 @@ import re
 try: from ncurses import curses
 except ImportError: import curses
 
-try: import termios, TERMIOS
+try: import termios
 except ImportError: termios = None
+try: import TERMIOS
+except ImportError: TERMIOS = termios
 
 try: import locale; locale.setlocale(locale.LC_ALL, "")
 except: pass
@@ -939,7 +941,10 @@ class PlaylistWindow(ListWindow):
 
 # ------------------------------------------
 class Player:
-    def __init__(self):
+    def __init__(self, commandline, files, fps=1):
+        self.commandline = commandline
+        self.re_files = re.compile(files, re.I)
+        self.fps = fps
         self.stdout_r, self.stdout_w = os.pipe()
         self.stderr_r, self.stderr_w = os.pipe()
         self.pathname = None
@@ -952,6 +957,15 @@ class Player:
 
     def is_paused(self):
         return self.paused
+
+    def setup(self, pathname, offset):
+        self.argv = string.split(self.commandline)
+        self.argv[0] = which(self.argv[0])
+        for i in range(len(self.argv)):
+            if self.argv[i] == '%s': self.argv[i] = str(pathname)
+            if self.argv[i] == '%d': self.argv[i] = str(offset*self.fps)
+        self.pathname = pathname
+        return self.argv[0]
 
     def play(self):
         self.filename = os.path.basename(self.pathname)
@@ -993,28 +1007,6 @@ class Player:
         except Exception: pass
         quiet or app.set_default_status(_("Stopped: %s") % self.filename)
 
-    ## todo - rewrite?
-    def seek(self, direction):
-        self.seek_step = self.seek_step or 1
-        self.seek_step = self.seek_step * (self.seek_step * direction > 0) + \
-                         direction
-        time_total = self.time_done + self.time_left
-        self.time_done = min(time_total, max(0, self.time_done+self.seek_step))
-        self.time_left = time_total - self.time_done
-        self.show_position()
-
-    def set_position(self, time_done, time_left):
-        if self.seek_step: return
-        if self.time_done == time_done: return
-        self.time_done = time_done
-        self.time_left = time_left
-        self.show_position()
-
-    def show_position(self):
-        app.counter(self.time_left)  # todo - toggle mode
-        ratio = self.time_done / (self.time_done + self.time_left + 1.0)
-        app.progress(ratio)
-
     def parse_stdout(self):
         os.read(self.stdout_r, 256)
 
@@ -1031,52 +1023,40 @@ class Player:
 
 # ------------------------------------------
 class ProgressPlayer(Player):
-    re_progress = re.compile("Time:\s*(\d+):(\d+).*\[(\d+):(\d+)")
+    re_progress = re.compile("Time.*\s(\d+):(\d+).*\[(\d+):(\d+)")
 
-    def parse_stderr(self):
-        m = self.re_progress.search(os.read(self.stderr_r, 256))
+    def parse_fd(self, fd):
+        m = self.re_progress.search(os.read(fd, 256))
         if m:
             m1, s1, m2, s2 = map(string.atoi, m.groups())
             self.set_position(m1*60+s1, m2*60+s2)
 
-# ------------------------------------------
-class mpg123_Player(ProgressPlayer):
-    re_files = re.compile(".*\.mp[123]$", re.I)
-    command = "%s -q -v -k %d"
-    name = "mpg123"
+    def parse_stderr(self):
+        self.parse_fd(self.stderr_r)
 
-    def setup(self, pathname, offset):
-        executable = which(self.name)
-        self.argv = string.split(self.command % (executable, offset*38.28))
-        self.argv.append(pathname)
-        self.pathname = pathname
-        return executable or 0
+    def parse_stdout(self):
+        self.parse_fd(self.stdout_r)
 
-# ------------------------------------------
-class sox_Player(Player):
-    re_files = re.compile(".*\.(aiff|au|cdr|wav)$", re.I)
-    command = "%s -t ossdsp %s"
-    name = "sox"
+    ## todo - rewrite?
+    def seek(self, d):
+        self.seek_step = self.seek_step or 1
+        self.seek_step = self.seek_step * (self.seek_step * d > 0) + d
+        time_total = self.time_done + self.time_left
+        self.time_done = min(time_total, max(0, self.time_done+self.seek_step))
+        self.time_left = time_total - self.time_done
+        self.show_position()
 
-    def setup(self, pathname, offset):
-        executable = which(self.name)
-        self.argv = string.split(self.command % (executable, DSP))
-        self.argv.insert(1, pathname)
-        self.pathname = pathname
-        return executable or 0
+    def set_position(self, time_done, time_left):
+        if self.seek_step: return
+        if self.time_done == time_done: return
+        self.time_done = time_done
+        self.time_left = time_left
+        self.show_position()
 
-# ------------------------------------------
-class ogg123_Player(ProgressPlayer):
-    re_files = re.compile(".*\.ogg$", re.I)
-    command = "%s -q -v -d oss -k %d"
-    name = "ogg123"
-
-    def setup(self, pathname, offset):
-        executable = which(self.name)
-        self.argv = string.split(self.command % (executable, offset))
-        self.argv.append(pathname)
-        self.pathname = pathname
-        return executable or 0
+    def show_position(self):
+        app.counter(self.time_left)  # todo - toggle mode
+        ratio = self.time_done / (self.time_done + self.time_left + 1.0)
+        app.progress(ratio)
 
 # ------------------------------------------
 class Timeout:
@@ -1201,8 +1181,10 @@ class Application:
         if not self.player.is_stopped(): self.player.stop()
         else: self.play(self.player.pathname, self.player.time_done)
 
+    ## todo - support seeking when stopped?
     def seek(self, direction):
         if self.player.is_stopped(): return
+        if not isinstance(self.player, ProgressPlayer): return
         if self.seek_tag: self.timeout.remove(self.seek_tag)
         self.player.seek(direction)
         args = (self.player.pathname, self.player.time_done)
@@ -1254,9 +1236,9 @@ class Application:
 # ------------------------------------------
 def main():
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "")
+        opts, args = getopt.getopt(sys.argv[1:], "rR")
     except:
-        usage = _("Usage: %s [ filename | playlist.m3u ] ...\n")
+        usage = _("Usage: %s [-rR] [ filename | playlist.m3u ] ...\n")
         sys.stderr.write(usage % sys.argv[0])
         sys.exit(1)
 
@@ -1270,12 +1252,11 @@ def main():
         os.open("/dev/tty", 0)
     try:
         app.setup()
-        if args:
-            for arg in args:
-                app.win_playlist.append(arg)
-        else:
-            for line in playlist:
-                app.win_playlist.append(line)
+        for opt, optarg in opts:
+            if opt == '-r': app.win_playlist.command_toggle_repeat()
+            if opt == '-R': app.win_playlist.command_toggle_random()
+        for item in args or playlist:
+            app.win_playlist.append(item)
         app.run()
     except SystemExit:
         app.cleanup()
@@ -1285,7 +1266,13 @@ def main():
         traceback.print_exc()
 
 # ------------------------------------------
-PLAYERS = [mpg123_Player(), sox_Player(), ogg123_Player()]
+
+PLAYERS = [
+    ProgressPlayer("mpg123 -q -v -k %d %s", ".*\.mp[123]$", 38.28),
+    ProgressPlayer("ogg123 -q -v -d oss -k %d %s", ".*\.ogg$"),
+    ProgressPlayer("splay -f %s", ".*\.mp[123]$"),
+    Player("sox %%s -t ossdsp %s" % DSP, ".*\.(aiff|au|cdr|wav)$")
+    ]
 
 def VALID_SONG(name):
     for player in PLAYERS:

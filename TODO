@@ -1,5 +1,8 @@
 high priority
 ------------------------------------------
+- madplay support
+- framework for displaying alternative metadata
+- automatic *_Player instantiation
 - shuffle/sort marked tracks?
 - seek acceleration based on total_time
 - toggle time done / time left
@@ -16,13 +19,13 @@ low priority
 ------------------------------------------
 - merge id3 patch
 - merge cddb patch
-- splay support
 - delwin when resizing
 - invert playlist markings
 - hierarchical playlists?
 
 misc thoughts
 ------------------------------------------
+- alsaplayer, xmp, mikmod, others?
 - delayed play command (play after current song is finished)
 - reset progress when changing song?
 - restore xterm title (not possible with aterm, rxvt, etc?)
