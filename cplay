@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.43pre2"
+__version__ = "cplay 1.43pre3"
 
 """
 cplay - A curses front-end for various audio players
-Copyright (C) 1998-2000 Ulf Betlehem <flu@iki.fi>
+Copyright (C) 1998-2001 Ulf Betlehem <flu@iki.fi>
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -187,14 +187,14 @@ class HelpWindow(Window):
   PgUp, PgDown,                     g         : goto
   Home, End : movement              Enter     : chdir or play
   Tab       : filelist/playlist     Backspace : parent dir
-  n,p       : next/prev track       
-  z,x       : toggle pause/stop     Playlist
+  n, p      : next/prev track       
+  z, x      : toggle pause/stop     Playlist
   Left, Right,                      --------
   C-b, C-f  : seek                  Enter : play track
-  C-s       : forward-isearch       Space : mark
-  C-r       : backward-isearch      a,c   : mark/clear all
-  C-g, Esc  : cancel                m     : move marked tracks
-  1..9, +-  : volume                d     : delete marked tracks
+  C-s       : forward-isearch       Space : toggle mark
+  C-r       : backward-isearch      a, c  : mark/clear all
+  C-g, Esc  : cancel                A, C  : mark/clear regexp
+  1..9, +/- : volume                m, d  : move/delete marked tracks
   C-l       : refresh screen        r, R  : toggle repeat/Random mode
   h         : help                  s, S  : shuffle/Sort playlist
   q         : quit                  o     : save playlist (to .m3u file)
@@ -253,7 +253,7 @@ class StatusWindow(Window):
 
     def update(self):
         msg = string.translate(self.current_message, Window.translationTable)
-        if len(msg) > self.cols: msg = "<%s" % msg[len(msg)-self.cols+1:]
+        if len(msg) > self.cols: msg = "%s>" % msg[:self.cols-1]
         self.move(0, 0)
         self.addstr(msg)
         self.clrtoeol()
@@ -396,8 +396,8 @@ class ListWindow(Window):
         self.search_direction = 0
 
         self.input_mode = 0
-        self.input_string = ""
         self.input_prompt = ""
+        self.input_string = ""
         self.do_input_hook = None
         self.stop_input_hook = None
 
@@ -446,6 +446,12 @@ class ListWindow(Window):
         if attr: self.attroff(attr)
         if self.visible and refresh: self.refresh()
 
+    def start_input(self, prompt="", data=""):
+        self.input_mode = 1
+        app.keymapstack.push(self.input_keymap)
+        self.input_prompt = prompt
+        self.input_string = data
+
     def do_input(self, *args):
         if self.do_input_hook:
             return apply(self.do_input_hook, args)
@@ -456,20 +462,13 @@ class ListWindow(Window):
             self.input_string = "%s%c" % (self.input_string, ch)
         app.status("%s: %s" % (self.input_prompt, self.input_string))
 
+    ## We have the result in self.input_string
     def stop_input(self, *args):
+        self.input_mode = 0
+        app.keymapstack.pop()
         if self.stop_input_hook:
             return apply(self.stop_input_hook, args)
-        self.set_input_mode(0)
-        app.status(_("probably not ok"), 1)
 
-    def set_input_mode(self, value):
-        self.input_mode = value
-        if value == 1: app.keymapstack.push(self.input_keymap)
-        if value == 0: app.keymapstack.pop()
-
-    def is_input_mode(self):
-        return self.input_mode == 1
-    
     def putstr(self, entry, *pos):
         s = string.translate(str(entry), Window.translationTable)
         s = "%s%s" % ((len(s) > self.cols) and (s[:self.cols - 1], ">") or (s, ""))
@@ -481,7 +480,7 @@ class ListWindow(Window):
         return self.buffer[self.bufptr]
 
     def cursor_move(self, ydiff):
-        if self.is_input_mode(): self.stop_input("cancel")
+        if self.input_mode: self.stop_input(_("cancel"))
         if not self.buffer: return
         self.update_line(refresh = 0)
         self.bufptr = (self.bufptr + ydiff) % len(self.buffer)
@@ -511,20 +510,19 @@ class ListWindow(Window):
 
     def start_search(self, type, direction):
         if not self.is_searching():
-            self.set_input_mode(1)
+            self.start_input()
             self.do_input_hook = self.do_search
             self.stop_input_hook = self.stop_search
-            self.input_string = ""
         if self.search_direction != direction:
             self.search_direction = direction
             self.input_prompt = type
             self.do_search()
-        else: self.do_search(advance = direction)
+        else:
+            self.do_search(advance = direction)
 
     def stop_search(self, reason = ""):
-        self.set_input_mode(0)
         self.search_direction = 0
-        if reason != None: app.status(reason, 1)
+        app.status(reason, 1)
 
     def do_search(self, ch = None, advance = 0):
         direction = self.search_direction
@@ -625,17 +623,13 @@ class FilelistWindow(ListWindow):
         self.listdir()
 
     def command_goto(self):
-        self.set_input_mode(1)
-        self.input_prompt = _("goto")
-        self.input_string = ""
+        self.start_input(_("goto"))
         self.do_input_hook = None
         self.stop_input_hook = self.stop_goto
         self.do_input()
 
-    ## We have the result in self.input_string
     def stop_goto(self, reason):
-        self.set_input_mode(0)
-        if reason == "cancel" or not self.input_string:
+        if reason == _("cancel") or not self.input_string:
             app.status(_("cancel"), 1)
             return
         dir = self.input_string
@@ -713,8 +707,6 @@ class PlaylistWindow(ListWindow):
         self.random_buffer = []
         self.keymap.bind('\n', self.command_play, ())
         self.keymap.bind(' ', self.command_mark, ())
-        self.keymap.bind('a', self.command_mark_all, ())
-        self.keymap.bind('c', self.command_clear_marks, ())
         self.keymap.bind('d', self.command_delete, ())
         self.keymap.bind('m', self.command_move, ())
         self.keymap.bind('s', self.command_shuffle, ())
@@ -722,6 +714,10 @@ class PlaylistWindow(ListWindow):
         self.keymap.bind('r', self.command_toggle_repeat, ())
         self.keymap.bind('R', self.command_toggle_random, ())
         self.keymap.bind('o', self.command_save_playlist, ())
+        self.keymap.bind('a', self.command_mark_all, ())
+        self.keymap.bind('c', self.command_clear_all, ())
+        self.keymap.bind('A', self.command_mark_regexp, ())
+        self.keymap.bind('C', self.command_clear_regexp, ())
 
     def change_name(self):
         self.name = _("Playlist %s %s") % (self.repeat and _("[repeat]")
@@ -828,7 +824,7 @@ class PlaylistWindow(ListWindow):
         app.status(_("Almost there..."), 1)
         self.update(force = 1)
 
-    def command_clear_marks(self):
+    def command_clear_all(self):
         for entry in self.buffer:
             entry.set_marked(0)
         app.status(_("Cleared all marks..."), 1)
@@ -889,18 +885,42 @@ class PlaylistWindow(ListWindow):
         self.change_name()
         self.parent.update_title()
 
+    def command_mark_regexp(self):
+        self.mark_value = 1
+        self.start_input(_("Mark regexp"))
+        self.do_input_hook = None
+        self.stop_input_hook = self.stop_mark_regexp
+        self.do_input()
+
+    def command_clear_regexp(self):
+        self.mark_value = 0
+        self.start_input(_("Clear regexp"))
+        self.do_input_hook = None
+        self.stop_input_hook = self.stop_mark_regexp
+        self.do_input()
+
+    def stop_mark_regexp(self, reason):
+        if reason == _("cancel") or not self.input_string:
+            app.status(_("cancel"), 1)
+            return
+        try:
+            r = re.compile(self.input_string)
+            for entry in self.buffer:
+                if r.search(entry.filename):
+                    entry.set_marked(self.mark_value)
+            self.update(force = 1)
+            app.status(_("ok"), 1)
+        except re.error, e:
+            app.status(str(e), 2)
+
     def command_save_playlist(self):
-        self.set_input_mode(1)
-        self.input_prompt = _("Save playlist")
-        self.input_string = app.win_filelist.cwd
+        self.start_input(_("Save playlist"), app.win_filelist.cwd)
         self.do_input_hook = None
         self.stop_input_hook = self.stop_save_playlist
         self.do_input()
 
-    ## We have the result in self.input_string
     def stop_save_playlist(self, reason):
-        self.set_input_mode(0)
-        if reason == "cancel" or not self.input_string:
+        if reason == _("cancel") or not self.input_string:
             app.status(_("cancel"), 1)
             return
         filename = self.input_string
@@ -920,15 +940,12 @@ class PlaylistWindow(ListWindow):
 # ------------------------------------------
 class Player:
     def __init__(self):
-        self.stopped = 0
-        self.paused = 0
         self.stdout_r, self.stdout_w = os.pipe()
         self.stderr_r, self.stderr_w = os.pipe()
         self.pathname = None
         self.filename = None
-        self.seek_step = None
-        self.time_done = None
-        self.time_left = None
+        self.stopped = 0
+        self.paused = 0
 
     def is_stopped(self):
         return self.stopped
@@ -950,6 +967,8 @@ class Player:
         self.stopped = 0
         self.paused = 0
         self.seek_step = None
+        self.time_done = 0
+        self.time_left = 0
 
     def pause(self, quiet=0):
         self.paused = 1
@@ -992,7 +1011,7 @@ class Player:
         self.show_position()
 
     def show_position(self):
-        app.counter(self.time_left)  # todo: toggle mode
+        app.counter(self.time_left)  # todo - toggle mode
         ratio = self.time_done / (self.time_done + self.time_left + 1.0)
         app.progress(ratio)
 
@@ -1023,7 +1042,7 @@ class ProgressPlayer(Player):
 # ------------------------------------------
 class mpg123_Player(ProgressPlayer):
     re_files = re.compile(".*\.mp[123]$", re.I)
-    command = "%s -qv -k %d"
+    command = "%s -q -v -k %d"
     name = "mpg123"
 
     def setup(self, pathname, offset):
@@ -1049,7 +1068,7 @@ class sox_Player(Player):
 # ------------------------------------------
 class ogg123_Player(ProgressPlayer):
     re_files = re.compile(".*\.ogg$", re.I)
-    command = "%s -qv -d oss -k %d"
+    command = "%s -q -v -d oss -k %d"
     name = "ogg123"
 
     def setup(self, pathname, offset):
@@ -1159,7 +1178,7 @@ class Application:
             if self.player.re_files.match(pathname):
                 if self.player.setup(pathname, offset): break
         else:
-            app.status(_("Player not found!"))
+            app.status(_("Player not found!"), 1)
             return
         self.player.play()
 

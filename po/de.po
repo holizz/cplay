@@ -10,10 +10,6 @@ msgstr ""
 "Content-Type: text/plain; charset=iso-8859-1\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: cplay:980
-msgid "Unknown file format!"
-msgstr "Unbekanntes Dateiformat!"
-
 #: cplay:828
 msgid "Almost there..."
 msgstr "Fast fertig..."
@@ -26,19 +22,11 @@ msgstr "Lösche alle Markierungen..."
 msgid "IOError"
 msgstr "I/O-Fehler"
 
-#: cplay:575
-msgid "Reading directory..."
-msgstr "Lese Verzeichnis..."
+#: cplay:882 cplay:888
+msgid "off"
+msgstr "aus"
 
-#: cplay:982
-msgid "Cannot find player! Please install %s."
-msgstr "Kann Player nicht finden!  Bitte installiere %s."
-
-#: cplay:981 cplay:1006
-msgid "Playing: %s"
-msgstr "Spiele: %s"
-
-#: cplay:917
+#: cplay:918
 msgid "Cannot write playlist!"
 msgstr "Kann Playliste nicht schreiben!"
 
@@ -54,31 +42,31 @@ msgstr "Nicht gefunden: %s"
 msgid "Playlist %s %s"
 msgstr "Playliste %s %s"
 
-#: cplay:629
-msgid "goto"
-msgstr "Gehzu"
+#: cplay:411
+msgid "backward-isearch"
+msgstr "Rückwärts-isuche"
 
-#: cplay:1017
-msgid "Stopped: %s"
-msgstr "Gestoppt: %s"
+#: cplay:878
+msgid "Sorted playlist..."
+msgstr "Sortiere Playliste..."
 
-#: cplay:207
+#: cplay:205
 msgid "Help"
 msgstr "Hilfe"
 
-#: cplay:419 cplay:915
+#: cplay:419 cplay:916
 msgid "ok"
 msgstr "ok"
 
-#: cplay:1000
+#: cplay:958
 msgid "Paused: %s"
 msgstr "Pause: %s"
 
-#: cplay:880
+#: cplay:882
 msgid "Repeat %s"
 msgstr "Wiederholung %s"
 
-#: cplay:880 cplay:886
+#: cplay:882 cplay:888
 msgid "on"
 msgstr "ein"
 
@@ -90,11 +78,11 @@ msgstr "Hinzugefügt: %s"
 msgid "[random]"
 msgstr "[zufällig]"
 
-#: cplay:870
+#: cplay:872
 msgid "Shuffled playlist... Oops?"
 msgstr "Durchwühle Playliste... Oops?"
 
-#: cplay:418 cplay:639 cplay:902
+#: cplay:418 cplay:639 cplay:904
 msgid "cancel"
 msgstr "Abbruch"
 
@@ -102,43 +90,31 @@ msgstr "Abbruch"
 msgid "probably not ok"
 msgstr "wahrscheinlich nicht ok"
 
-#: cplay:876
-msgid "Sorted playlist..."
-msgstr "Sortiere Playliste..."
+#: cplay:575
+msgid "Reading directory..."
+msgstr "Lese Verzeichnis..."
+
+#: cplay:1162
+msgid "Player not found!"
+msgstr "Player nicht gefunden!"
 
 #: cplay:611
 msgid "Filelist: "
 msgstr "Dateiliste: "
 
-#: cplay:1210
+#: cplay:1240
 msgid "Usage: %s [ filename | playlist.m3u ] ...\n"
 msgstr "Verwendung: %s [ datei | playliste.m3u ] ...\n"
 
-#: cplay:1187
+#: cplay:1217
 msgid "Volume %d%%"
 msgstr "Lautstärke %d%%"
 
-#: cplay:880 cplay:886
-msgid "off"
-msgstr "aus"
+#: cplay:941 cplay:964
+msgid "Playing: %s"
+msgstr "Spiele: %s"
 
-#: cplay:727 cplay:728
-msgid "[repeat]"
-msgstr "[wiederhole]"
-
-#: cplay:886
-msgid "Random %s"
-msgstr "Zufall %s"
-
-#: cplay:892
-msgid "Save playlist"
-msgstr "Speichere Playliste"
-
-#: cplay:411
-msgid "backward-isearch"
-msgstr "Rückwärts-isuche"
-
-#: cplay:183
+#: cplay:181
 msgid ""
 "\n"
 "  Global                            Filelist\n"
@@ -155,7 +131,7 @@ msgid ""
 "  C-s       : forward-isearch       Space : mark\n"
 "  C-r       : backward-isearch      a,c   : mark/clear all\n"
 "  C-g, Esc  : cancel                m     : move marked tracks\n"
-"  1..9      : volume                d     : delete marked tracks\n"
+"  1..9, +-  : volume                d     : delete marked tracks\n"
 "  C-l       : refresh screen        r, R  : toggle repeat/Random mode\n"
 "  h         : help                  s, S  : shuffle/Sort playlist\n"
 "  q         : quit                  o     : save playlist (to .m3u file)\n"
@@ -176,14 +152,34 @@ msgstr ""
 "  C-s       : Vorwärts-isuche       Space : markiere\n"
 "  C-r       : Rückwärts-isuche      a,c   : markiere/lösche alle\n"
 "  C-g, Esc  : Abbruch               m     : verschiebe markierte Tracks\n"
-"  1..9      : Lautstärke            d     : lösche markierte Tracks\n"
+"  1..9, +-  : Lautstärke            d     : lösche markierte Tracks\n"
 "  C-l       : stelle Bildschirm her r, R  : schalte widerhole/zufällig "
 "Modus\n"
 "  h         : Hilfe                 s, S  : durchwühle/ordne Playliste\n"
 "  q         : Ende                  o     : speichere Playliste (als .m3u "
 "Datei)\n"
 
-#: cplay:1189
+#: cplay:727 cplay:728
+msgid "[repeat]"
+msgstr "[wiederhole]"
+
+#: cplay:888
+msgid "Random %s"
+msgstr "Zufall %s"
+
+#: cplay:894
+msgid "Save playlist"
+msgstr "Speichere Playliste"
+
+#: cplay:629
+msgid "goto"
+msgstr "Gehzu"
+
+#: cplay:975
+msgid "Stopped: %s"
+msgstr "Gestoppt: %s"
+
+#: cplay:1209 cplay:1219
 msgid "Cannot open mixer device %s"
 msgstr "Kann Mixer-Device %s nicht öffnen."
 
@@ -194,3 +190,4 @@ msgstr "Playliste"
 #: cplay:644
 msgid "Not a directory!"
 msgstr "Kein Verzeichnis!"
+
