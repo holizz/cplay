@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.47"
+__version__ = "cplay 1.48pre1"
 
 """
 cplay - A curses front-end for various audio players
@@ -63,15 +63,6 @@ except:
 
 # ------------------------------------------
 XTERM = re.search("rxvt|xterm", os.environ["TERM"])
-
-MIXER_IOCTL = [["MASTER", 0x80044d00, 0xc0044d00],
-               ["PCM",    0x80044d04, 0xc0044d04]]
-
-for DSP in ["/dev/sound/dsp", "/dev/dsp"]:
-    if os.path.exists(DSP): break
-for MIXER in ["/dev/sound/mixer", "/dev/mixer"]:
-    if os.path.exists(MIXER): break
-
 CONTROL_FIFO = "/var/tmp/cplay_control"
 
 # ------------------------------------------
@@ -132,7 +123,6 @@ class Keymap:
 
 # ------------------------------------------
 class Window:
-    string.punctuation = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'  # 1.5 kludge
     chars = string.letters+string.digits+string.punctuation+string.whitespace
 
     t = ['?'] * 256
@@ -394,6 +384,7 @@ class ListWindow(Window):
         self.bufptr = self.scrptr = 0
         self.search_direction = 0
         self.last_search = ""
+        self.hoffset = 0
         self.keymap = Keymap()
         self.keymap.bind(['k', curses.KEY_UP, 16], self.cursor_move, (-1,))
         self.keymap.bind(['j', curses.KEY_DOWN, 14], self.cursor_move, (1,))
@@ -405,6 +396,8 @@ class ListWindow(Window):
                          (_("backward-isearch"), -1))
         self.keymap.bind(['/', 19], self.start_search,
                          (_("forward-isearch"), 1))
+        self.keymap.bind(['>'], self.hscroll, (8,))
+        self.keymap.bind(['<'], self.hscroll, (-8,))
 
     def newwin(self):
         return curses.newwin(self.parent.rows-2, self.parent.cols,
@@ -449,6 +442,7 @@ class ListWindow(Window):
     def putstr(self, entry, *pos):
         s = string.translate(str(entry), Window.translationTable)
         pos and apply(self.move, pos)
+        if self.hoffset: s = "<%s" % s[self.hoffset+1:]
         self.insstr(cut(s, self.cols))
 
     def current(self):
@@ -507,7 +501,7 @@ class ListWindow(Window):
                 break
             line = string.lower(str(self.buffer[index]))
             if string.find(line, string.lower(app.input_string)) != -1:
-                app.status("%s%s " % (app.input_prompt, app.input_string))
+                app.show_input()
                 self.update_line(refresh = 0)
                 self.bufptr = index
                 self.update(force = 0)
@@ -517,6 +511,10 @@ class ListWindow(Window):
                 app.status(_("Not found: %s ") % app.input_string)
                 break
             index = index + self.search_direction
+
+    def hscroll(self, value):
+        self.hoffset = max(0, self.hoffset + value)
+        self.update()
 
 # ------------------------------------------
 class HelpWindow(ListWindow):
@@ -882,8 +880,9 @@ class FilelistWindow(TagListWindow):
             app.win_playlist.add(self.current().pathname)
             self.cursor_move(1)
             return
+        app.status(_("Adding tagged files"), 1)
         for entry in l:
-            app.win_playlist.add(entry.pathname)
+            app.win_playlist.add(entry.pathname, quiet=1)
             entry.set_tagged(0)
         self.update()
 
@@ -975,7 +974,7 @@ class PlaylistWindow(TagListWindow):
         map(f, map(string.strip, file.readlines()))
         file.close()
     
-    def add(self, pathname):
+    def add(self, pathname, quiet=0):
         try:
             if os.path.isdir(pathname):
                 app.status(_("Working..."))
@@ -987,7 +986,7 @@ class PlaylistWindow(TagListWindow):
                 self.append(PlaylistEntry(pathname))
             # todo - refactor
             filename = os.path.basename(pathname) or pathname
-            app.status(_("Added: %s") % filename, 1)
+            quiet or app.status(_("Added: %s") % filename, 1)
         except Exception, e:
             app.status(e, 2)
 
@@ -1017,8 +1016,8 @@ class PlaylistWindow(TagListWindow):
                 elif self.repeat: self.random_unplayed = self.buffer[:]
                 else: return
                 if not new:
-                    import whrandom
-                    new = whrandom.choice(self.random_unplayed)
+                    import random
+                    new = random.choice(self.random_unplayed)
                     self.random_unplayed.remove(new)
                 try: self.random_prev.remove(new)
                 except ValueError: pass
@@ -1091,12 +1090,12 @@ class PlaylistWindow(TagListWindow):
         self.update()
 
     def command_shuffle(self):
-        import whrandom
+        import random
         l = []
         n = len(self.buffer)
         while n > 0:
             n = n-1
-            r = whrandom.randint(0, n)
+            r = random.randint(0, n)
             l.append(self.buffer[r])
             del self.buffer[r]
         self.buffer = l
@@ -1196,7 +1195,7 @@ class Player:
         self.stopped = 0
         self.paused = 0
         self.time_setup = None
-        self.buf = None
+        self.buf = ''
         self.tid = None
 
     def is_stopped(self):
@@ -1231,6 +1230,7 @@ class Player:
         self.stopped = 0
         self.paused = 0
         self.step = 0
+        self.parse_progress()
         self.update_status()
 
     def pause(self, quiet=0):
@@ -1246,6 +1246,7 @@ class Player:
         quiet or self.update_status()
 
     def stop(self, quiet=0):
+        self.buf = ''
         self.stopped = 1
         self.is_paused() and self.unpause(quiet)
         try:
@@ -1318,24 +1319,30 @@ class FrameOffsetPlayer(Player):
     re_progress = re.compile("Time.*\s(\d+):(\d+).*\[(\d+):(\d+)")
 
     def parse_buf(self):
-        match = self.re_progress.search(self.buf or '')
-        self.buf = None
+        match = self.re_progress.search(self.buf)
         if match and not self.step:
             m1, s1, m2, s2 = map(string.atoi, match.groups())
             head, tail = m1*60+s1, m2*60+s2
             self.set_position(head, head+tail, [head, tail])
 
 # ------------------------------------------
-class NoOffsetPlayer(Player):
-    re_progress = re.compile("\s*(\d+):(\d+):(\d+)")
+class TimeOffsetPlayer(Player):
+    re_progress = re.compile("(\d+):(\d+):(\d+)")
 
     def parse_buf(self):
-        match = self.re_progress.search(self.buf or '')
-        self.buf = None
+        match = self.re_progress.search(self.buf)
         if match and not self.step:
             h, m, s = map(string.atoi, match.groups())
-            head = tail = h*3600+m*60+s
-            self.set_position(0, 0, [head, tail])
+            tail = h*3600+m*60+s
+            head = max(self.length, tail) - tail
+            self.set_position(head, head+tail, [head, tail])
+
+# ------------------------------------------
+class NoOffsetPlayer(Player):
+
+    def parse_buf(self):
+        head = self.offset+1
+        self.set_position(head, 0, [head, head])
 
     def seek(self, *dummy):
         return 1
@@ -1392,14 +1399,13 @@ class FIFOControl:
 class Application:
     def __init__(self):
         self.keymapstack = KeymapStack()
-        self.mixer_read = MIXER_IOCTL[0][1]
-        self.mixer_write = MIXER_IOCTL[0][2]
         self.input_mode = 0
         self.input_prompt = ""
         self.input_string = ""
         self.do_input_hook = None
         self.stop_input_hook = None
         self.complete_input_hook = None
+        self.channels = []
         self.input_keymap = Keymap()
         self.input_keymap.bind(list(Window.chars), self.do_input)
         self.input_keymap.bind(curses.KEY_BACKSPACE, self.do_input, (8,))
@@ -1443,7 +1449,8 @@ class Application:
         self.control = FIFOControl()
 
     def cleanup(self):
-        curses.endwin()
+        try: curses.endwin()
+        except curses.error: return
         XTERM and sys.stderr.write("\033]0;%s\a" % "xterm")
         tty and tty.tcsetattr(sys.stdin.fileno(), tty.TCSADRAIN, self.tcattr)
         print
@@ -1528,32 +1535,41 @@ class Application:
     def key_volume(self, ch):
         self.set_volume((ch & 0x0f)*10)
 
+    def open_mixer(self):
+        import oss
+        if not self.channels:
+            self.channels = [['MASTER', oss.SOUND_MIXER_VOLUME],
+                             ['PCM', oss.SOUND_MIXER_PCM]]
+        return oss.open_mixer(), self.channels[0]
+
     def get_volume(self):
         try:
-            import fcntl, struct
-            fd = os.open(MIXER, 0)
-            tmp = fcntl.ioctl(fd, self.mixer_read, struct.pack('=i', 0))
-            self.volume = struct.unpack('=i', tmp)[0] & 0xff
-            os.close(fd)
+            mixer, (name, ch) = self.open_mixer()
+            self.volume = mixer.read_channel(ch)[0]
+            mixer.close()
+            app.status(_("%s volume %s%%") % (name, self.volume), 1)
             return 1
         except Exception, e:
             app.status(e, 2)
 
     def set_volume(self, v):
         try:
-            import fcntl, struct
-            fd = os.open(MIXER, 1)
-            fcntl.ioctl(fd, self.mixer_write, struct.pack('=i', v | v<<8))
-            os.close(fd)
-            app.status(_("Volume %s%%") % v, 1)
+            mixer, (name, ch) = self.open_mixer()
+            mixer.write_channel(ch, v)
+            mixer.close()
+            self.get_volume()
         except Exception, e:
             app.status(e, 2)
 
     def toggle_mixer(self):
-        MIXER_IOCTL.insert(0, MIXER_IOCTL.pop())
-        name, self.mixer_read, self.mixer_write = MIXER_IOCTL[0]
-        if self.get_volume():
-            app.status(_("%s volume %s%%") % (name, self.volume), 1)
+        self.get_volume()
+        self.channels and self.channels.insert(0, self.channels.pop())
+        self.get_volume()
+
+    def show_input(self):
+        n = len(self.input_prompt)+1
+        s = cut(self.input_string, self.win_status.cols-n, left=1)
+        app.status("%s%s " % (self.input_prompt, s))
 
     def start_input(self, prompt="", data="", colon=1):
         self.input_mode = 1
@@ -1561,7 +1577,7 @@ class Application:
         app.keymapstack.push(self.input_keymap)
         self.input_prompt = prompt + (colon and ": " or "")
         self.input_string = data
-        app.status("%s%s " % (self.input_prompt, self.input_string))
+        self.show_input()
 
     def do_input(self, *args):
         if self.do_input_hook:
@@ -1577,7 +1593,7 @@ class Application:
             self.input_string = re.sub("((.* )?)\w.*", "\\1", self.input_string)
         elif ch:
             self.input_string = "%s%c" % (self.input_string, ch)
-        app.status("%s%s " % (self.input_prompt, self.input_string))
+        self.show_input()
 
     def stop_input(self, *args):
         self.input_mode = 0
@@ -1656,8 +1672,10 @@ PLAYERS = [
     FrameOffsetPlayer("mpg123 -q -v -k %d %s", "\.mp[123]$", 38.28),
     FrameOffsetPlayer("splay -f -k %d %s", "(^http://|\.mp[123]$)", 38.28),
     FrameOffsetPlayer("mpg321 -q -v -k %d %s", "(^http://|\.mp[123]$)", 38.28),
-    NoOffsetPlayer("madplay -q -v --no-tty-control %s", "\.mp[123]$"),
-    NoOffsetPlayer("mikmod -q -p0 %s", "\.(mod|xm|fm|s3m|med|col|669|it|mtm)$")
+    TimeOffsetPlayer("madplay -v --no-tty-control --display-time=remaining -s %d %s", "\.mp[123]$"),
+    NoOffsetPlayer("mikmod -q -p0 %s", "\.(mod|xm|fm|s3m|med|col|669|it|mtm)$"),
+    NoOffsetPlayer("xmp -q %s", "\.(mod|xm|fm|s3m|med|col|669|it|mtm)$"),
+    NoOffsetPlayer("play %s", "\.(aiff|au|cdr|mp3|ogg|wav)$")
     ]
 
 def VALID_SONG(name):

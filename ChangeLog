@@ -1,3 +1,35 @@
+2003-08-20  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay(1.48pre1):
+	- discontinue python1.5 support
+	- mixer/volume control using python-oss module
+	- horizontal scrolling with < and >
+	- show tail (was head) of long input lines
+	- import random instead of whrandom
+	- minor progress parsing modification
+	- NoOffsetPlayer simply counts seconds (Martin Michlmayr)
+	- TimeOffsetPlayer with full madplay support
+	- added partial xmp and play (sox) support
+
+2003-08-17  Ulf Betlehem  <flu@iki.fi>
+
+	* po/hu.po:
+	- new file (Gergely Nagy)
+	
+	* po/pl.po:
+	- new file (Perry)
+	- fixed help text not showing
+
+	* po/da.po:
+	- new file (Christian Storgaard)
+	- specified charset/encoding
+
+2003-05-13  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay:
+	- display "Adding tagged files" instead of a separate message for each file (Martin Michlmayr)
+	- avoid error-messages when interrupting cplay when started via xargs (Moshe Zadka)
+
 2003-04-13  Ulf Betlehem  <flu@iki.fi>
 
 	*** 1.47 released ***
