@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.49pre3"
+__version__ = "cplay 1.49pre4"
 
 """
 cplay - A curses front-end for various audio players
@@ -75,10 +75,6 @@ def which(program):
 def cut(s, n, left=0):
     if left: return len(s) > n and "<%s" % s[-n+1:] or s
     else: return len(s) > n and "%s>" % s[:n-1] or s
-
-# ------------------------------------------
-#def log(msg):
-#    open("log", "a").write("%.02f %s\n" % (time.time(), msg))
 
 # ------------------------------------------
 class Stack:
@@ -477,13 +473,13 @@ class ListWindow(Window):
     def start_search(self, type, direction):
         self.search_direction = direction
         self.not_found = 0
-        if not app.input_mode:
+        if app.input_mode:
+            app.input_prompt = "%s: " % type
+            self.do_search(advance = direction)
+        else:
             app.do_input_hook = self.do_search
             app.stop_input_hook = self.stop_search
             app.start_input(type)
-        else:
-            app.input_prompt = "%s: " % type  # todo
-            self.do_search(advance = direction)
 
     def stop_search(self):
         self.last_search = app.input_string
@@ -523,36 +519,27 @@ class HelpWindow(ListWindow):
         self.name = _("Help")
         self.keymap.bind('q', self.parent.help, ())
         self.buffer = string.split(_("""\
-
-  Global                               Space : tag/untag current
-  ------                               t, T  : tag current/regex
-  Up, Down, k, j, C-p, C-n,            u, U  : untag current/regex
-  PgUp, PgDn, K, J,                    i     : invert tags
+  Global                               t, T  : tag current/regex
+  ------                               u, U  : untag current/regex
+  Up, Down, k, j, C-p, C-n,            Sp, i : invert current/all
+  PgUp, PgDn, K, J,                    !     : shell ($@ = tagged or current)
   Home, End, g, G : movement
   Enter           : chdir or play      Filelist
   Tab             : filelist/playlist  --------
-  n, p            : next/prev track    BkSpc : parent dir
-  z, x            : toggle pause/stop  o, s  : goto, search recursively
-  Left, Right,                         a     : add (tagged) to playlist
-  C-f, C-b    : seek forward/backward
-  c           : counter mode           Playlist
+  n, p            : next/prev track    a     : add (tagged) to playlist
+  z, x            : toggle pause/stop  s     : recursive search
+                                       BS, o : goto parent/specified dir
+  Left, Right,                         m, '  : set/get bookmark
+  C-f, C-b    : seek forward/backward  
+  C-a, C-e    : restart/end track      Playlist
   C-s, C-r, / : isearch                --------
   C-g, Esc    : cancel                 d, D  : delete (tagged) tracks/playlist
   1..9, +, -  : volume control         m, M  : move tagged tracks after/before
-  v           : PCM or MASTER volume   r, R  : toggle repeat/Random mode
-  C-l, l      : refresh, list mode     s, S  : shuffle/Sort playlist
-  h, q, Q     : help, quit?, Quit!     w, @  : write playlist, jump to current
-
-
-
-  Goodies
-  -------
-  b, '   : set/get filelist bookmark
-  X      : stop playlist after each track
-  C-a, ^ : seek to beginning of current track (restart)
-  C-e, $ : seek to end of current track (useless?)
-  !      : shell command ($@ = tagged or current)
-  """), "\n")
+  c, v        : counter/volume mode    r, R  : toggle repeat/Random mode
+  <, >        : horizontal scrolling   s, S  : shuffle/Sort playlist
+  C-l, l      : refresh, list mode     w, @  : write playlist, jump to active
+  h, q, Q     : help, quit?, Quit!     X     : stop playlist after each track
+"""), "\n")
 
 # ------------------------------------------
 class ListEntry:
@@ -669,6 +656,7 @@ class FilelistWindow(TagListWindow):
         self.oldposition = {}
         try: self.chdir(os.getcwd())
         except OSError: self.chdir(os.environ['HOME'])
+        self.startdir = self.cwd
         self.mtime_when = 0
         self.mtime = None
         self.keymap.bind(['\n', curses.KEY_ENTER],
@@ -678,12 +666,13 @@ class FilelistWindow(TagListWindow):
         self.keymap.bind('a', self.command_add_recursively, ())
         self.keymap.bind('o', self.command_goto, ())
         self.keymap.bind('s', self.command_search_recursively, ())
-        self.keymap.bind('b', self.command_set_bookmark, ())
+        self.keymap.bind('m', self.command_set_bookmark, ())
         self.keymap.bind("'", self.command_get_bookmark, ())
         self.keymap.bind('!', self.command_shell, ())
         self.bookmarks = { 39: [self.cwd, 0] }
 
     def command_shell(self):
+        if app.restricted: return
         app.stop_input_hook = self.stop_shell
         app.complete_input_hook = self.complete_shell
         app.start_input(_("shell$ "), colon=0)
@@ -858,11 +847,13 @@ class FilelistWindow(TagListWindow):
             app.play(self.current())
 
     def command_chparentdir(self):
+        if app.restricted and self.cwd == self.startdir: return
         dir = os.path.basename(self.cwd)
         self.chdir(os.path.dirname(self.cwd))
         self.listdir(prevdir=dir)
 
     def command_goto(self):
+        if app.restricted: return
         app.stop_input_hook = self.stop_goto
         app.complete_input_hook = self.complete_generic
         app.start_input(_("goto"))
@@ -991,13 +982,6 @@ class PlaylistWindow(TagListWindow):
         apply(ListWindow.putstr, (self, entry) + pos)
         if entry.is_active(): self.attroff(curses.A_BOLD)
 
-    # todo - remove next and prev song methods?
-    def next_song(self):
-        return self.change_active_entry(1)
-
-    def prev_song(self):
-        return self.change_active_entry(-1)
-
     def change_active_entry(self, direction):
         if not self.buffer: return
         old = self.get_active_entry()
@@ -1123,6 +1107,7 @@ class PlaylistWindow(TagListWindow):
         self.parent.update_title()
 
     def command_save_playlist(self):
+        if app.restricted: return
         default = self.pathname or "%s/" % app.win_filelist.cwd
         app.stop_input_hook = self.stop_save_playlist
         app.start_input(_("Save playlist"), default)
@@ -1184,6 +1169,7 @@ class Player:
         self.commandline = commandline
         self.re_files = re.compile(files, re.I)
         self.fps = fps
+        self.stdin_r, self.stdin_w = os.pipe()
         self.stdout_r, self.stdout_w = os.pipe()
         self.stderr_r, self.stderr_w = os.pipe()
         self.entry = None
@@ -1192,12 +1178,6 @@ class Player:
         self.time_setup = None
         self.buf = ''
         self.tid = None
-
-    def is_stopped(self):
-        return self.stopped
-
-    def is_paused(self):
-        return self.paused
 
     def setup(self, entry, offset):
         self.argv = string.split(self.commandline)
@@ -1217,54 +1197,43 @@ class Player:
     def play(self):
         self.pid = os.fork()
         if self.pid == 0:
+            os.dup2(self.stdin_w, sys.stdin.fileno())
             os.dup2(self.stdout_w, sys.stdout.fileno())
             os.dup2(self.stderr_w, sys.stderr.fileno())
             os.setpgrp()
             try: os.execv(self.argv[0], self.argv)
-            except: time.sleep(1); os._exit(1)
+            except: os._exit(1)
         self.stopped = 0
         self.paused = 0
         self.step = 0
         self.update_status()
 
-    def pause(self, quiet=0):
-        self.paused = 1
-        try: os.kill(-self.pid, signal.SIGSTOP)
-        except os.error: pass
-        quiet or self.update_status()
-
-    def unpause(self, quiet=0):
-        self.paused = 0
-        try: os.kill(-self.pid, signal.SIGCONT)
-        except os.error: pass
-        quiet or self.update_status()
-
     def stop(self, quiet=0):
-        self.buf = ''
-        self.stopped = 1
-        self.is_paused() and self.unpause(quiet)
+        self.paused and self.toggle_pause(quiet)
         try:
             while 1:
                 try: os.kill(-self.pid, signal.SIGINT)
                 except os.error: pass
                 os.waitpid(self.pid, os.WNOHANG)
         except Exception: pass
+        self.stopped = 1
+        quiet or self.update_status()
+
+    def toggle_pause(self, quiet=0):
+        try: os.kill(-self.pid, [signal.SIGSTOP, signal.SIGCONT][self.paused])
+        except os.error: return
+        self.paused = not self.paused
         quiet or self.update_status()
 
     def parse_progress(self):
-        self.parse_buf()
-        if self.is_stopped(): self.tid = None
-        else: self.tid = app.timeout.add(1.0, self.parse_progress)
+        if self.stopped or self.step: self.tid = None
+        else:
+            self.parse_buf()
+            self.tid = app.timeout.add(1.0, self.parse_progress)
 
     def read_fd(self, fd):
         self.buf = os.read(fd, 512)
         self.tid or self.parse_progress()
-
-    def read_stderr(self):
-        self.read_fd(self.stderr_r)
-
-    def read_stdout(self):
-        self.read_fd(self.stdout_r)
 
     def poll(self):
         try: os.waitpid(self.pid, os.WNOHANG)
@@ -1301,9 +1270,9 @@ class Player:
     def update_status(self):
         if not self.entry:
             app.set_default_status("")
-        elif self.is_stopped():
+        elif self.stopped:
             app.set_default_status(_("Stopped: %s") % self.entry.vp())
-        elif self.is_paused():
+        elif self.paused:
             app.set_default_status(_("Paused: %s") % self.entry.vp())
         else:
             app.set_default_status(_("Playing: %s") % self.entry.vp())
@@ -1314,7 +1283,7 @@ class FrameOffsetPlayer(Player):
 
     def parse_buf(self):
         match = self.re_progress.search(self.buf)
-        if match and not self.step:
+        if match:
             m1, s1, m2, s2 = map(string.atoi, match.groups())
             head, tail = m1*60+s1, m2*60+s2
             self.set_position(head, head+tail, [head, tail])
@@ -1325,7 +1294,7 @@ class TimeOffsetPlayer(Player):
 
     def parse_buf(self):
         match = self.re_progress.search(self.buf)
-        if match and not self.step:
+        if match:
             h, m, s = map(string.atoi, match.groups())
             tail = h*3600+m*60+s
             head = max(self.length, tail) - tail
@@ -1400,6 +1369,7 @@ class Application:
         self.stop_input_hook = None
         self.complete_input_hook = None
         self.channels = []
+        self.restricted = 0
         self.input_keymap = Keymap()
         self.input_keymap.bind(list(Window.chars), self.do_input)
         self.input_keymap.bind(curses.KEY_BACKSPACE, self.do_input, (8,))
@@ -1455,12 +1425,12 @@ class Application:
             now = time.time()
             timeout = self.timeout.check(now)
             self.win_filelist.listdir_maybe(now)
-            if not self.player.is_stopped():
+            if not self.player.stopped:
                 timeout = 0.5
                 if self.kludge and self.player.poll():
                     self.player.stopped = 1  # end of playlist hack
                     if not self.win_playlist.stop:
-                        entry = self.win_playlist.next_song()
+                        entry = self.win_playlist.change_active_entry(1)
                         entry and self.play(entry)
             R = [sys.stdin, self.player.stdout_r, self.player.stderr_r]
             self.control.fd and R.append(self.control.fd)
@@ -1473,10 +1443,10 @@ class Application:
                 self.keymapstack.process(c)
             # player
             if self.player.stderr_r in r:
-                self.player.read_stderr()
+                self.player.read_fd(self.player.stderr_r)
             # player
             if self.player.stdout_r in r:
-                self.player.read_stdout()
+                self.player.read_fd(self.player.stdout_r)
             # remote
             if self.control.fd in r:
                 self.control.handle_command()
@@ -1500,10 +1470,10 @@ class Application:
         self.play_tid = self.timeout.add(0.5, self.play, (entry, offset))
 
     def next_song(self):
-        self.delayed_play(self.win_playlist.next_song(), 0)
+        self.delayed_play(self.win_playlist.change_active_entry(1), 0)
 
     def prev_song(self):
-        self.delayed_play(self.win_playlist.prev_song(), 0)
+        self.delayed_play(self.win_playlist.change_active_entry(-1), 0)
 
     def seek(self, offset, relative):
         if not self.player.entry: return
@@ -1512,13 +1482,11 @@ class Application:
 
     def toggle_pause(self):
         if not self.player.entry: return
-        if not self.player.is_stopped():
-            if self.player.is_paused(): self.player.unpause()
-            else: self.player.pause()
+        if not self.player.stopped: self.player.toggle_pause()
 
     def toggle_stop(self):
         if not self.player.entry: return
-        if not self.player.is_stopped(): self.player.stop()
+        if not self.player.stopped: self.player.stop()
         else: self.play(self.player.entry, self.player.offset)
 
     def inc_volume(self):
@@ -1601,12 +1569,12 @@ class Application:
         self.input_string = ""
         self.stop_input()
 
-    def cursor(self, i):
-        try: curses.curs_set(i)
+    def cursor(self, visibility):
+        try: curses.curs_set(visibility)
         except: pass
 
     def quit(self):
-        if not self.player.is_stopped(): self.player.stop(quiet=1)
+        self.player.stop(quiet=1)
         sys.exit(0)
 
     def handler_resize(self, sig, frame):
@@ -1624,9 +1592,9 @@ class Application:
 # ------------------------------------------
 def main():
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "rRv")
+        opts, args = getopt.getopt(sys.argv[1:], "nrRv")
     except:
-        usage = _("Usage: %s [-rRv] [ file | dir | playlist ] ...\n")
+        usage = _("Usage: %s [-nrRv] [ file | dir | playlist ] ...\n")
         sys.stderr.write(usage % sys.argv[0])
         sys.exit(1)
 
@@ -1641,6 +1609,7 @@ def main():
     try:
         app.setup()
         for opt, optarg in opts:
+            if opt == "-n": app.restricted = 1
             if opt == "-r": app.win_playlist.command_toggle_repeat()
             if opt == "-R": app.win_playlist.command_toggle_random()
             if opt == "-v": app.mixer("toggle")
@@ -1662,7 +1631,7 @@ PLAYERS = [
     FrameOffsetPlayer("splay -f -k %d %s", "(^http://|\.mp[123]$)", 38.28),
     FrameOffsetPlayer("mpg123 -q -v -k %d %s", "(^http://|\.mp[123]$)", 38.28),
     FrameOffsetPlayer("mpg321 -q -v -k %d %s", "(^http://|\.mp[123]$)", 38.28),
-    TimeOffsetPlayer("madplay -v --no-tty-control --display-time=remaining -s %d %s", "\.mp[123]$"),
+    TimeOffsetPlayer("madplay -v --display-time=remaining -s %d %s", "\.mp[123]$"),
     NoOffsetPlayer("mikmod -q -p0 %s", "\.(mod|xm|fm|s3m|med|col|669|it|mtm)$"),
     NoOffsetPlayer("xmp -q %s", "\.(mod|xm|fm|s3m|med|col|669|it|mtm|stm)$"),
     NoOffsetPlayer("play %s", "\.(aiff|au|cdr|mp3|ogg|wav)$"),

@@ -1,3 +1,23 @@
+2003-11-08  Ulf Betlehem  <flu@iki.fi>
+
+	*** 1.49pre4 ***
+
+	* cplay:
+	- restricted mode (suggested by Yoann AUBINEAU)
+	- connect player stdin to a pipe
+	- removed sleep(1) if player exec failed
+	- combined pause/unpause -> toggle_pause
+	- no parse_buf() if stopped or seeking
+	- removed --no-tty-control from madplay (stdin no longer tty)
+	- reduced codesize
+
+2003-11-06  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay:
+	- use 'm' for bookmarking instead of 'b'
+	- minor code clean-up
+	- modified help page
+
 2003-11-02  Ulf Betlehem  <flu@iki.fi>
 
 	*** 1.49pre3 ***
