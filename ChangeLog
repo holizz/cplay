@@ -1,3 +1,24 @@
+2004-02-07  Ulf Betlehem  <flu@iki.fi>
+
+	*** 1.50pre1 ***
+	
+	* cplay:
+	- user definable macros (for example MACRO['d'] = '!rm "$@"\n')
+	- new remote control commands: macro <key>, add <pathname>
+
+	* README:
+	- documented macros and shell positional arguments
+
+2004-02-05  Ulf Betlehem  <flu@iki.fi>
+
+	* README:
+	- mkfifo /var/tmp/cplay_control (Ricardo Niederberger Cabral)
+
+2004-01-07  Ulf Betlehem  <flu@iki.fi>
+
+	* po/Makefile, Makefile:
+	- SHELL = /bin/bash (Murphy)
+
 2003-12-05  Ulf Betlehem  <flu@iki.fi>
 
 	*** 1.49 released ***

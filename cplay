@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.49"
+__version__ = "cplay 1.50pre1"
 
 """
 cplay - A curses front-end for various audio players
@@ -300,6 +300,7 @@ class RootWindow(Window):
         keymap.bind('Q', app.quit, ())
         keymap.bind('q', self.command_quit, ())
         keymap.bind('v', app.mixer, ("toggle",))
+        keymap.bind(',', app.command_macro, ())
 
     def command_quit(self):
         app.do_input_hook = self.do_quit
@@ -522,7 +523,7 @@ class HelpWindow(ListWindow):
   Global                               t, T  : tag current/regex
   ------                               u, U  : untag current/regex
   Up, Down, k, j, C-p, C-n,            Sp, i : invert current/all
-  PgUp, PgDn, K, J,                    !     : shell ($@ = tagged or current)
+  PgUp, PgDn, K, J,                    !, ,  : shell, macro
   Home, End, g, G : movement
   Enter           : chdir or play      Filelist
   Tab             : filelist/playlist  --------
@@ -970,6 +971,7 @@ class PlaylistWindow(TagListWindow):
                 self.append(PlaylistEntry(pathname))
             # todo - refactor
             filename = os.path.basename(pathname) or pathname
+            quiet or self.update()
             quiet or app.status(_("Added: %s") % filename, 1)
         except Exception, e:
             app.status(e, 2)
@@ -1336,27 +1338,26 @@ class FIFOControl:
     def __init__(self):
         try: self.fd = open(CONTROL_FIFO, "rb+", 0)
         except: self.fd = None
-        self.commands = {"pause" : app.toggle_pause,
-                         "next" : app.next_song,
-                         "prev" : app.prev_song,
-                         "forward" : self.forward,
-                         "backward" : self.backward,
-                         "play" : app.toggle_stop,
-                         "stop" : app.toggle_stop,
-                         "volup" : app.inc_volume,
-                         "voldown" : app.dec_volume,
-                         "quit" : app.quit}
+        self.commands = {"pause" : [app.toggle_pause, []],
+                         "next" : [app.next_song, []],
+                         "prev" : [app.prev_song, []],
+                         "forward" : [app.seek, [1, 1]],
+                         "backward" : [app.seek, [-1, 1]],
+                         "play" : [app.toggle_stop, []],
+                         "stop" : [app.toggle_stop, []],
+                         "volup" : [app.inc_volume, []],
+                         "voldown" : [app.dec_volume, []],
+                         "macro" : [app.run_macro],
+                         "add" : [app.win_playlist.add],
+                         "quit" : [app.quit, []]}
 
     def handle_command(self):
-        command = string.strip(self.fd.readline())
-        if command in self.commands.keys():
-            self.commands[command]()
-
-    def forward(self):
-        app.seek(1, 1)
-
-    def backward(self):
-        app.seek(-1, 1)
+        argv = self.fd.readline().strip().split(" ", 1)
+        if len(argv) < 2: argv.append("")
+        if argv[0] in self.commands.keys():
+            l = self.commands[argv[0]][:]
+            if len(l) == 1: l.append([argv[1]])
+            apply(*l)
 
 # ------------------------------------------
 class Application:
@@ -1375,8 +1376,19 @@ class Application:
         self.input_keymap.bind(curses.KEY_BACKSPACE, self.do_input, (8,))
         self.input_keymap.bind([21, 23], self.do_input)
         self.input_keymap.bind(['\a', 27], self.cancel_input, ())
-        self.input_keymap.bind(['\n', curses.KEY_ENTER],
-                               self.stop_input, ())
+        self.input_keymap.bind(['\n', curses.KEY_ENTER], self.stop_input, ())
+
+    def command_macro(self):
+        app.do_input_hook = self.do_macro
+        app.start_input(_("macro"))
+
+    def do_macro(self, ch):
+        app.stop_input()
+        self.run_macro(chr(ch))
+
+    def run_macro(self, c):
+        for i in MACRO.get(c, ""):
+            self.keymapstack.process(ord(i))
 
     def setup(self):
         if tty:
@@ -1637,6 +1649,8 @@ PLAYERS = [
     NoOffsetPlayer("play %s", "\.(aiff|au|cdr|mp3|ogg|wav)$"),
     NoOffsetPlayer("speexdec %s", "\.spx$")
     ]
+
+MACRO = {}
 
 def VALID_SONG(name):
     for player in PLAYERS:
