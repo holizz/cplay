@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.45pre3"
+__version__ = "cplay 1.45pre4"
 
 """
 cplay - A curses front-end for various audio players
@@ -64,6 +64,11 @@ except:
 # ------------------------------------------
 XTERM = re.search("rxvt|xterm", os.environ["TERM"]) and 1 or 0
 RETRY = 2.0
+
+SOUND_MIXER_WRITE_VOLUME = 0xc0044d00
+SOUND_MIXER_READ_VOLUME = 0x80044d00
+SOUND_MIXER_WRITE_PCM = 0xc0044d04
+SOUND_MIXER_READ_PCM = 0x80044d04
 
 for DSP in ["/dev/sound/dsp", "/dev/dsp"]:
     if os.path.exists(DSP): break
@@ -185,24 +190,24 @@ class Window:
 class HelpWindow(Window):
     text = _("""\
 
-  Global                              Filelist
-  ------                              --------
-  Up, C-p, k, Down, C-n, j,           Space     : add to playlist
-  PgUp, K, PgDown, J                  a         : add recursively
-  Home, g, End, G                     o         : open path
-              : movement              Enter     : chdir or play
-  Tab         : filelist/playlist     Backspace : parent dir
-  n, p        : next/prev track       
-  z, x        : toggle pause/stop     Playlist
-  Left, Right,                        --------
-  C-b, C-f    : seek                  Enter : play track
-  C-s, C-r, / : isearch               Space : toggle mark
-  t           : toggle counter mode   a, c  : mark/clear all
-  C-g, Esc    : cancel                A, C  : mark/clear regexp
-  1..9, +, -  : volume                m, d  : move/delete marked tracks
-  C-l         : refresh screen        r, R  : toggle repeat/Random mode
-  h           : help                  s, S  : shuffle/Sort playlist
-  q           : quit                  w     : write playlist (to .m3u file)
+  Global                               Filelist
+  ------                               --------
+  Up, C-p, k, Down, C-n, j,            Space     : add to playlist
+  PgUp, K, PgDown, J                   a         : add recursively
+  Home, g, End, G                      o         : open path
+              : movement               Enter     : chdir or play
+  Tab         : filelist/playlist      Backspace : parent dir
+  n, p        : next/prev track        
+  z, x        : toggle pause/stop      Playlist
+  Left, Right,                         --------
+  C-b, C-f    : seek                   Enter : play track
+  C-s, C-r, / : isearch                Space : toggle mark
+  t           : toggle counter mode    a, c  : mark/clear all
+  C-g, Esc    : cancel                 A, C  : mark/clear regexp
+  1..9, +, -  : volume control         m, d  : move/delete marked tracks
+  v, V        : PCM or MASTER volume   r, R  : toggle repeat/Random mode
+  C-l         : refresh screen         s, S  : shuffle/Sort playlist
+  h, q        : help, quit             w     : write playlist (to .m3u file)
 """)
 
     def __init__(self, parent):
@@ -329,6 +334,8 @@ class RootWindow(Window):
         keymap.bind('x', app.toggle_stop, ())
         keymap.bind('t', app.toggle_counter_mode, ())
         keymap.bind('q', app.quit, ())
+        keymap.bind('v', app.use_pcm_volume, ())
+        keymap.bind('V', app.use_master_volume, ())
         app.keymapstack.push(keymap)
 
         self.win_progress = ProgressWindow(self)
@@ -1120,6 +1127,8 @@ class Timeout:
 class Application:
     def __init__(self):
         self.keymapstack = KeymapStack()
+	self.mixer_read = SOUND_MIXER_READ_VOLUME
+	self.mixer_write = SOUND_MIXER_WRITE_VOLUME
 
     def setup(self):
         if tty:
@@ -1230,10 +1239,10 @@ class Application:
         self.seek_tag = self.timeout.add(0.5, self.play, args)
 
     def inc_volume(self):
-        self.get_volume() and self.set_volume(min(100, self.volume+1))
+        self.get_volume() and self.set_volume(min(100, self.volume+3))
 
     def dec_volume(self):
-        self.get_volume() and self.set_volume(max(0, self.volume-1))
+        self.get_volume() and self.set_volume(max(0, self.volume-3))
 
     def key_volume(self, ch):
         self.set_volume((ch & 0x0f) * 10)
@@ -1242,7 +1251,8 @@ class Application:
         try:
             import fcntl
             fd = os.open(MIXER, 0)
-            self.volume = ord(fcntl.ioctl(fd, 0x80044d00, "."))
+            self.volume = ord(fcntl.ioctl(fd, self.mixer_read, "."))
+	    # 80044d04
             os.close(fd)
             return 1
         except:
@@ -1252,11 +1262,21 @@ class Application:
         try:
             import fcntl
             fd = os.open(MIXER, 1)
-            fcntl.ioctl(fd, 0xc0044d00, "%c%c" % (v, v))
+            fcntl.ioctl(fd, self.mixer_write, "%c%c" % (v, v))
             os.close(fd)
             app.status(_("Volume %d%%") % v, 1)
         except:
             app.status(_("Cannot open mixer device %s") % MIXER, 1)
+
+    def use_pcm_volume(self):
+	self.mixer_read = SOUND_MIXER_READ_PCM
+	self.mixer_write = SOUND_MIXER_WRITE_PCM
+	app.status(_("Using PCM volume"), 1)
+
+    def use_master_volume(self):
+	self.mixer_read = SOUND_MIXER_READ_VOLUME
+	self.mixer_write = SOUND_MIXER_WRITE_VOLUME
+	app.status(_("Using MASTER volume"), 1)
 
     def quit(self):
         if not self.player.is_stopped(): self.player.stop(quiet=1)
@@ -1275,9 +1295,9 @@ class Application:
 # ------------------------------------------
 def main():
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "rR")
+        opts, args = getopt.getopt(sys.argv[1:], "rRvV")
     except:
-        usage = _("Usage: %s [-rR] [ file | dir | playlist.m3u ] ...\n")
+        usage = _("Usage: %s [-rRvV] [ file | dir | playlist.m3u ] ...\n")
         sys.stderr.write(usage % sys.argv[0])
         sys.exit(1)
 
@@ -1294,6 +1314,8 @@ def main():
         for opt, optarg in opts:
             if opt == '-r': app.win_playlist.command_toggle_repeat()
             if opt == '-R': app.win_playlist.command_toggle_random()
+            if opt == '-v': app.use_pcm_volume()
+            if opt == '-V': app.use_master_volume()
         if args or playlist:
             for item in args or playlist:
                 app.win_playlist.append(item)
