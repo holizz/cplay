@@ -1,0 +1,1189 @@
+#!/usr/bin/env python
+# -*- python -*-
+
+__version__ = "$Id: cplay,v 1.30 2000/05/23 16:41:30 flu Exp $"
+
+"""
+cplay - A curses front-end for mpg123 (version >= 0.59o)
+Copyright (C) 1998-2000 Ulf Betlehem <flu@iki.fi>
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+"""
+
+# ------------------------------------------
+import os
+import sys
+import time
+import getopt
+import signal
+import string
+import select
+import fcntl
+import re
+import whrandom
+
+try: from ncurses import curses
+except ImportError: import curses
+
+try: import termios, TERMIOS
+except ImportError: termios = None
+
+from types import *
+
+# ------------------------------------------
+FPS = 38.28
+RE_SONG = re.compile(".*\.[Mm][Pp][123]$")
+RE_PLAYLIST = re.compile(".*\.[Mm]3[Uu]$")
+
+# ------------------------------------------
+class Stack:
+    def __init__(self):
+        self.items = ()
+
+    def push(self, item):
+        self.items = (item,) + self.items
+
+    def pop(self):
+        self.items, item = self.items[1:], self.items[0]
+        return item
+
+# ------------------------------------------
+class KeymapStack(Stack):
+    def process(self, code):
+        for keymap in self.items:
+            if keymap and keymap.process(code):
+                break
+
+# ------------------------------------------
+class Keymap:
+    def __init__(self):
+        self.methods = [None] * curses.KEY_MAX
+
+    def bind(self, key, method, args=None):
+        if type(key) in (TupleType, ListType):
+            for i in key: self.bind(i, method, args)
+            return
+        if type(key) is StringType:
+            key = ord(key)
+        self.methods[key] = (method, args)
+
+    def process(self, key):
+        if self.methods[key] is None: return 0
+        method, args = self.methods[key]
+        if args is None:
+            apply(method, (key,))
+        else:
+            apply(method, args)
+        return 1
+
+# ------------------------------------------
+class Window:
+
+    t = ['?'] * 256
+    for i in range(0x20, 0x7f): t[i] = chr(i)
+    for c in string.letters: t[ord(c)] = c
+    translationTable = string.join(t, "")
+
+    def __init__(self, parent):
+        self.parent = parent
+        self.children = []
+        self.name = None
+        self.keymap = None
+        self.visible = 1
+        self.resize()
+        if parent: parent.children.append(self)
+
+    def __getattr__(self, name):
+        return getattr(self.w, name)
+
+    def getmaxyx(self):
+        y, x = self.w.getmaxyx()
+        try: # use old and incorrect behavior
+            curses.COLS
+            y, x = y+1, x+1
+        except AttributeError: pass
+        return y, x
+
+    def touchwin(self):
+        try: self.w.touchwin()
+        except AttributeError: self.touchln(0, self.getmaxyx()[0])
+
+    def attron(self, attr):
+        try: self.w.attron(attr)
+        except AttributeError: self.w.attr_on(attr)
+
+    def attroff(self, attr):
+        try: self.w.attroff(attr)
+        except AttributeError: self.w.attr_off(attr)
+
+    def newwin(self):
+        return curses.newwin(0, 0, 0, 0)
+
+    def resize(self):
+        # todo: delwin
+        self.w = self.newwin()
+        self.ypos, self.xpos = self.getbegyx()
+        self.rows, self.cols = self.getmaxyx()
+        self.keypad(1)
+        self.leaveok(1)
+        self.scrollok(1)
+        for child in self.children:
+            child.resize()
+
+    def update(self):
+        self.clear()
+        self.refresh()
+        for child in self.children:
+            child.update()
+
+# ------------------------------------------
+class HelpWindow(Window):
+    text = """\
+
+  Global                            Filelist
+  ------                            --------
+  Up, C-p, k,                       Space     : add to playlist
+  Down, C-n, j,                     a         : add recursively
+  PgUp, PgDown,                     g         : goto
+  Home, End : movement              Enter     : chdir or play
+  Tab       : filelist/playlist     Backspace : parent dir
+  n,p       : next/prev track       
+  z,x       : toggle pause/stop     Playlist
+  Left, Right,                      --------
+  C-b, C-f  : seek                  Enter : play track
+  C-s       : forward-isearch       Space : mark
+  C-r       : backward-isearch      a,c   : mark/clear all
+  C-g, Esc  : cancel                m     : move marked tracks
+  1..9      : volume                d     : delete marked tracks
+  C-l       : refresh screen        r, R  : toggle repeat/Random mode
+  h         : help                  s, S  : shuffle/Sort playlist
+  q         : quit                  o     : save playlist (to .m3u file)
+"""
+
+    def __init__(self, parent):
+        Window.__init__(self, parent)
+        self.name = "Help"
+        self.keymap = Keymap()
+        self.keymap.bind('q', self.parent.help, ())
+
+    def newwin(self):
+        return curses.newwin(self.parent.rows-2, self.parent.cols, self.parent.ypos+2, self.parent.xpos)
+
+    def update(self):
+        self.move(0, 0)
+        self.addstr(self.text)
+        self.touchwin()
+        self.refresh()
+
+# ------------------------------------------
+class ProgressWindow(Window):
+    def __init__(self, parent):
+        Window.__init__(self, parent)
+        self.value = 0
+
+    def newwin(self):
+        return curses.newwin(1, self.parent.cols, self.parent.rows-2, 0)
+
+    def update(self):
+        self.move(0, 0)
+        self.hline(ord('-'), self.cols)
+        x = self.value * self.cols - 1
+        if x >= 0:
+            self.move(0, 0)
+            self.hline(ord('='), x)
+            self.move(0, x)
+            self.addstr('|')
+        self.touchwin()
+        self.refresh()
+
+    def progress(self, value):
+        self.value = min(1, value)
+        self.update()
+
+# ------------------------------------------
+class StatusWindow(Window):
+    def __init__(self, parent):
+        Window.__init__(self, parent)
+        self.default_message = ''
+        self.current_message = ''
+        self.timeout_tag = None
+
+    def newwin(self):
+        return curses.newwin(1, self.parent.cols-12, self.parent.rows-1, 0)
+
+    def update(self):
+        msg = string.translate(self.current_message, Window.translationTable)
+        if len(msg) > self.cols: msg = "<%s" % msg[len(msg)-self.cols+1:]
+        self.move(0, 0)
+        self.addstr(msg)
+        self.clrtoeol()
+        self.touchwin()
+        self.refresh()
+
+    def status(self, message, duration = 0):
+        self.current_message = message
+        if duration > 0:
+            if self.timeout_tag: app.remove_timeout(self.timeout_tag)
+            self.timeout_tag = app.add_timeout(self.timeout, duration)
+        self.update()
+
+    def timeout(self):
+        self.timeout_tag = None
+        self.restore_default_status()
+
+    def set_default_status(self, message):
+        self.default_message = message
+        self.status(message)
+
+    def restore_default_status(self):
+        self.status(self.default_message)
+
+# ------------------------------------------
+class CounterWindow(Window):
+    def __init__(self, parent):
+        Window.__init__(self, parent)
+        self.seconds = 0
+
+    def newwin(self):
+        return curses.newwin(1, 11, self.parent.rows-1, self.parent.cols-11)
+
+    def update(self):
+        s = self.seconds
+        h, s = s / 3600, s % 3600
+        m, s = s / 60, s % 60
+        self.move(0, 0)
+        self.attron(curses.A_BOLD)
+        self.addstr("%02dh %02dm %02ds" % (h, m, s))
+        self.attroff(curses.A_BOLD)
+        self.touchwin()
+        self.refresh()
+
+    def counter(self, seconds):
+        self.seconds = seconds
+        self.update()
+
+# ------------------------------------------
+class RootWindow(Window):
+    def __init__(self, parent):
+        Window.__init__(self, parent)
+        keymap = Keymap()
+        keymap.bind(12, self.update, ()) # C-l
+        keymap.bind([curses.KEY_LEFT, 2], app.seek, (-4.0,)) # Left, C-b
+        keymap.bind([curses.KEY_RIGHT, 6], app.seek, (4.0,)) # Right, C-f
+        keymap.bind(range(48,58), app.set_volume) # 1234567890
+        keymap.bind('n', app.next_song, ())
+        keymap.bind('p', app.prev_song, ())
+        keymap.bind('z', app.pause, ())
+        keymap.bind('x', app.stop, ())
+        keymap.bind('q', app.quit, ())
+        app.keymapstack.push(keymap)
+
+        self.win_progress = ProgressWindow(self)
+        self.win_status = StatusWindow(self)
+        self.win_counter = CounterWindow(self)
+        self.win_tab = TabWindow(self)
+
+# ------------------------------------------
+class TabWindow(Window):
+    def __init__(self, parent):
+        Window.__init__(self, parent)
+        self.active_child = 0
+
+        self.win_filelist = self.add(FilelistWindow)
+        self.win_playlist = self.add(PlaylistWindow)
+        self.win_help     = self.add(HelpWindow)
+
+        self.keymap = Keymap()
+        self.keymap.bind('\t', self.change_window, ()) # Tab
+        self.keymap.bind('h', self.help, ())
+        app.keymapstack.push(self.keymap)
+        app.keymapstack.push(self.children[self.active_child].keymap)
+
+    def newwin(self):
+        return curses.newwin(self.parent.rows-2, self.parent.cols, 0, 0)
+
+    def update(self):
+        self.update_title()
+        self.move(1, 0)
+        self.hline(ord('-'), self.cols)
+        self.move(2, 0)
+        self.clrtobot()
+        self.refresh()
+        child = self.children[self.active_child]
+        child.visible = 1
+        child.update()
+
+    def update_title(self, refresh = 1):
+        self.move(0, 0)
+        self.clrtoeol()
+        self.attron(curses.A_BOLD)
+        self.addstr(str(self.children[self.active_child].name))
+        self.attroff(curses.A_BOLD)
+        if refresh: self.refresh()
+
+    # eee - rename?
+    def add(self, Class):
+        win = Class(self)
+        win.visible = 0
+        return win
+
+    def change_window(self, window = None):
+        app.keymapstack.pop()
+        self.children[self.active_child].visible = 0
+        if window:
+            self.active_child = self.children.index(window)
+        else:
+            # toggle windows 0 and 1
+            self.active_child = not self.active_child
+        app.keymapstack.push(self.children[self.active_child].keymap)
+        self.update()
+
+    def help(self):
+        if self.children[self.active_child] == self.win_help:
+            self.change_window(self.win_last)
+        else:
+            self.win_last = self.children[self.active_child]
+            self.change_window(self.win_help)
+
+# ------------------------------------------
+class ListWindow(Window):
+    def __init__(self, parent):
+        Window.__init__(self, parent)
+        self.buffer = []
+        self.bufptr = self.scrptr = 0
+        self.search_direction = 0
+
+        self.input_mode = 0
+        self.input_string = ""
+        self.input_prompt = ""
+        self.do_input_hook = None
+        self.stop_input_hook = None
+
+        self.keymap = Keymap()
+        self.keymap.bind(['k', curses.KEY_UP, 16], self.cursor_move, (-1,)) # C-p
+        self.keymap.bind(['j', curses.KEY_DOWN, 14], self.cursor_move, (1,)) # C-n
+        self.keymap.bind(curses.KEY_PPAGE, self.cursor_ppage, ())
+        self.keymap.bind(curses.KEY_NPAGE, self.cursor_npage, ())
+        self.keymap.bind(curses.KEY_HOME, self.cursor_home, ())
+        self.keymap.bind(curses.KEY_END, self.cursor_end, ())
+        self.keymap.bind(18, self.start_search, ("backward-isearch", -1)) # C-r
+        self.keymap.bind(19, self.start_search, ("forward-isearch", 1)) # C-s
+
+        self.input_keymap = Keymap()
+        self.input_keymap.bind(range(32, 128), self.do_input)
+        self.input_keymap.bind('\t', self.do_input) # Tab
+        self.input_keymap.bind(curses.KEY_BACKSPACE, self.do_input, (8,))
+        self.input_keymap.bind(['\a', 27], self.stop_input, ("cancel",)) # C-g or Esc
+        self.input_keymap.bind('\n', self.stop_input, ("ok",)) # enter
+
+    def newwin(self):
+        return curses.newwin(self.parent.rows-2, self.parent.cols, self.parent.ypos+2, self.parent.xpos)
+
+    def update(self, force = 1):
+        self.bufptr = max(0, min(self.bufptr, len(self.buffer) - 1))
+        scrptr = (self.bufptr / self.rows) * self.rows
+        if force or self.scrptr != scrptr:
+            self.scrptr = scrptr
+            self.move(0, 0)
+            for entry in self.buffer[self.scrptr:]:
+                if self.getyx()[0] == self.rows - 1: break
+                if self.getyx()[1] > 0: self.addstr("\n")
+                self.putstr(entry)
+            self.clrtobot()
+            if self.visible: self.refresh()
+        self.update_line(curses.A_REVERSE)
+
+    def update_line(self, attr = None, refresh = 1):
+        if not self.buffer: return
+        ypos = self.bufptr - self.scrptr
+        if attr: self.attron(attr)
+        self.move(ypos, 0)
+        self.hline(ord(' '), self.cols)
+        entry = self.current()
+        self.putstr(entry)
+        if attr: self.attroff(attr)
+        if self.visible and refresh: self.refresh()
+
+    def do_input(self, *args):
+        if self.do_input_hook:
+            return apply(self.do_input_hook, args)
+        ch = args and args[0] or None
+        if ch in [8, 127]: # backspace
+            self.input_string = self.input_string[:-1]
+        elif ch:
+            self.input_string = "%s%c" % (self.input_string, ch)
+        app.status("%s: %s" % (self.input_prompt, self.input_string))
+
+    def stop_input(self, *args):
+        if self.stop_input_hook:
+            return apply(self.stop_input_hook, args)
+        self.set_input_mode(0)
+        app.status("probably not ok", 1)
+
+    def set_input_mode(self, value):
+        self.input_mode = value
+        if value == 1: app.keymapstack.push(self.input_keymap)
+        if value == 0: app.keymapstack.pop()
+
+    def is_input_mode(self):
+        return self.input_mode == 1
+    
+    def putstr(self, entry, *pos):
+        s = string.translate(str(entry), Window.translationTable)
+        s = "%s%s" % ((len(s) > self.cols) and (s[:self.cols - 1], ">") or (s, ""))
+        pos and apply(self.move, pos)
+        self.addstr(s)
+
+    def current(self):
+        if self.bufptr >= len(self.buffer): self.bufptr = len(self.buffer) - 1
+        return self.buffer[self.bufptr]
+
+    def cursor_move(self, ydiff):
+        if self.is_input_mode(): self.stop_input("cancel")
+        if not self.buffer: return
+        self.update_line(refresh = 0)
+        self.bufptr = (self.bufptr + ydiff) % len(self.buffer)
+        self.update(force = 0)
+
+    def cursor_ppage(self):
+        if self.rows > len(self.buffer): return
+        tmp = self.bufptr % self.rows
+        if tmp == self.bufptr:
+            self.cursor_move(-(tmp + (len(self.buffer) % self.rows) or self.rows))
+        else:
+            self.cursor_move(-(tmp + self.rows))
+
+    def cursor_npage(self):
+        if self.rows > len(self.buffer): return
+        tmp = self.rows - self.bufptr % self.rows
+        if self.bufptr + tmp > len(self.buffer):
+            self.cursor_move(len(self.buffer) - self.bufptr)
+        else:
+            self.cursor_move(tmp)
+
+    def cursor_home(self): self.cursor_move(-self.bufptr)
+
+    def cursor_end(self): self.cursor_move(-self.bufptr - 1)
+
+    def is_searching(self): return abs(self.search_direction)
+
+    def start_search(self, type, direction):
+        if not self.is_searching():
+            self.set_input_mode(1)
+            self.do_input_hook = self.do_search
+            self.stop_input_hook = self.stop_search
+            self.input_string = ""
+        if self.search_direction != direction:
+            self.search_direction = direction
+            self.input_prompt = type
+            self.do_search()
+        else: self.do_search(advance = direction)
+
+    def stop_search(self, reason = ""):
+        self.set_input_mode(0)
+        self.search_direction = 0
+        if reason != None: app.status(reason, 1)
+
+    def do_search(self, ch = None, advance = 0):
+        direction = self.search_direction
+        if ch in [8, 127]: # backspace
+            direction = -direction
+            self.input_string = self.input_string[:-1]
+        elif ch:
+            self.input_string = "%s%c" % (self.input_string, ch)
+        index = self.bufptr + advance
+        while 1:
+            if index >= len(self.buffer) or index < 0:
+                app.status("Not found: %s" % self.input_string)
+                break
+            line = "%s" % self.buffer[index]
+            if string.find(string.lower(line),
+                           string.lower(self.input_string)) != -1:
+                app.status("%s: %s" % (self.input_prompt, self.input_string))
+                self.update_line(refresh = 0)
+                self.bufptr = index
+                self.update(force = 0)
+                break
+            index = index + direction
+
+# ------------------------------------------
+class FilelistWindow(ListWindow):
+    def __init__(self, parent):
+        ListWindow.__init__(self, parent)
+        self.oldposition = {}
+        self.chdir(os.getcwd())
+        self.mtime_when = 0
+        self.mtime = None
+        self.keymap.bind('\n', self.command_chdir_or_play, ())
+        self.keymap.bind(['.', curses.KEY_BACKSPACE], self.command_chparentdir, ())
+        self.keymap.bind(' ', self.command_add, ())
+        self.keymap.bind('a', self.command_add_recursively, ())
+        self.keymap.bind('g', self.command_goto, ())
+
+    def listdir_maybe(self, now=0):
+        if now < self.mtime_when+2: return
+        self.mtime_when = now
+        try:
+            mtime = os.stat(self.cwd)[8]
+            self.mtime == mtime or self.listdir()
+            self.mtime = mtime
+        except os.error: pass
+
+    def listdir(self):
+        app.status("Reading directory...")
+        self.dirs = []
+        self.files = []
+        try:
+            self.mtime = os.stat(self.cwd)[8]
+            self.mtime_when = time.time()
+            for entry in os.listdir(self.cwd):
+                if os.path.isdir(self.cwd + entry):
+                    self.dirs.append("%s/" % entry)
+                elif RE_SONG.match(entry):
+                    self.files.append("%s" % entry)
+                elif RE_PLAYLIST.match(entry):
+                    self.files.append("%s" % entry)
+        except os.error: pass
+        self.dirs.sort()
+        self.files.sort()
+        self.buffer = ["../"] + self.dirs + self.files
+        if self.oldposition.has_key(self.cwd):
+            self.bufptr = self.oldposition[self.cwd]
+        else:
+            self.bufptr = 0
+        self.parent.update_title()
+        self.update(force = 1)
+        app.restore_default_status()
+
+    def normpath(self, dir):
+        dir = dir and dir + '/'
+        match = 1
+        while match: dir, match = re.subn("/+(\.|[^/]*/*\.\.)/+", "/", dir, 1)
+        match = 1
+        while match: dir, match = re.subn("//+", "/", dir, 1)
+        return dir
+
+    def chdir(self, dir):
+        if hasattr(self, "cwd"): self.oldposition[self.cwd] = self.bufptr
+        self.cwd = self.normpath(dir)
+        self.name = "Filelist: "
+        diff = len(self.name) + len(self.cwd) - self.cols
+        if diff > 0: self.name = "%s<%s" % (self.name, self.cwd[diff+1:])
+        else: self.name = "%s%s" % (self.name, self.cwd)
+
+    def command_chdir_or_play(self):
+        if os.path.isdir(self.cwd + self.current()):
+            self.chdir(self.cwd + self.current())
+            self.listdir()
+        elif RE_SONG.match(self.current()):
+            app.player.play(self.cwd + self.current(), 0)
+
+    def command_chparentdir(self):
+        self.chdir(self.cwd + "..")
+        self.listdir()
+
+    def command_goto(self):
+        self.set_input_mode(1)
+        self.input_prompt = "goto"
+        self.input_string = ""
+        self.do_input_hook = None
+        self.stop_input_hook = self.stop_goto
+        self.do_input()
+
+    ## We have the result in self.input_string
+    def stop_goto(self, reason):
+        self.set_input_mode(0)
+        if reason == "cancel":
+            app.status("cancel", 1)
+            return
+        dir = self.input_string
+        if dir and dir[0] != '/': dir = "%s%s" % (self.cwd, dir)
+        if not os.path.isdir(dir):
+            app.status("Not a directory!", 1)
+            return
+        self.chdir(dir)
+        self.listdir()
+
+    def command_add(self):
+        if (os.path.isfile(self.cwd + self.current()) and
+            RE_SONG.match(self.current())):
+            app.win_playlist.append(self.cwd + self.current())
+            self.cursor_move(+1)
+
+    def command_add_recursively(self):
+        if os.path.isdir(self.cwd + self.current()):
+            self.add_dir(self.cwd + self.current())
+            self.cursor_move(+1)
+        elif RE_PLAYLIST.match(self.current()):
+            app.win_playlist.append(self.cwd + self.current())
+            self.cursor_move(+1)
+
+    def add_dir(self, dir):
+        if os.path.isdir(dir):
+            try:
+                entries = []
+                for entry in os.listdir(dir):
+                    entries.append(os.path.join(dir, entry))
+            except os.error: return
+            songs = filter(RE_SONG.match, entries)
+            dirs = filter(os.path.isdir, entries)
+            songs.sort()
+            for song in songs:
+                app.win_playlist.append(song)
+            dirs.sort()
+            for subdir in dirs:
+                self.add_dir(subdir)
+
+# ------------------------------------------
+class PlaylistEntry:
+    def __init__(self, pathname):
+        self.pathname = pathname
+        self.filename = os.path.basename(pathname)
+        self.marked = 0
+        self.active = 0
+        self.attrib = curses.A_BOLD
+
+    def set_marked(self, value):
+        self.marked = value
+
+    def toggle_marked(self):
+        self.marked = not self.marked
+
+    def is_marked(self):
+        return self.marked == 1
+
+    def set_active(self, value):
+        self.active = value
+
+    def is_active(self):
+        return self.active == 1
+
+    def __str__(self):
+        return "%s %s" % (self.is_marked() and "#" or " ", self.filename)
+
+# ------------------------------------------
+class PlaylistWindow(ListWindow):
+    def __init__(self, parent):
+        ListWindow.__init__(self, parent)
+        self.name = "Playlist"
+        self.repeat = 0
+        self.random = 0
+        self.random_buffer = []
+        self.keymap.bind('\n', self.command_play, ())
+        self.keymap.bind(' ', self.command_mark, ())
+        self.keymap.bind('a', self.command_mark_all, ())
+        self.keymap.bind('c', self.command_clear_marks, ())
+        self.keymap.bind('d', self.command_delete, ())
+        self.keymap.bind('m', self.command_move, ())
+        self.keymap.bind('s', self.command_shuffle, ())
+        self.keymap.bind('S', self.command_sort, ())
+        self.keymap.bind('r', self.command_toggle_repeat, ())
+        self.keymap.bind('R', self.command_toggle_random, ())
+        self.keymap.bind('o', self.command_save_playlist, ())
+
+    def change_name(self):
+        self.name = "Playlist %s %s" % (self.repeat and "[repeat]" or "        ",
+                                        self.random and "[random]" or "        ")
+
+    def append(self, pathname):
+        if RE_PLAYLIST.match(pathname):
+            try:
+                file = open(pathname)
+                for filename in map(string.strip, file.readlines()):
+                    if re.match("^(#.*)?$", filename): continue
+                    entry = None
+                    if filename[0] != '/':
+                        entry = PlaylistEntry(os.path.join(os.path.dirname(pathname), filename))
+                    else:
+                        entry = PlaylistEntry(filename)
+                    app.status("Added: %s" % entry.filename, 1)
+                    self.buffer.append(entry)
+                file.close()
+            except IOError:
+                app.status("IOError", 1)
+        else:
+            entry = PlaylistEntry(pathname)
+            app.status("Added: %s" % entry.filename, 1)
+            self.buffer.append(entry)
+        self.update(force = 1)
+
+    def clear(self):
+        self.buffer = []
+
+    def putstr(self, entry, *pos):
+        if entry.is_active(): self.attron(curses.A_BOLD)
+        apply(ListWindow.putstr, (self, entry) + pos)
+        if entry.is_active(): self.attroff(curses.A_BOLD)
+
+    def next_song(self):
+        entry = self.change_active_entry(1)
+        return entry and entry.pathname or None
+
+    def prev_song(self):
+        entry = self.change_active_entry(-1)
+        return entry and entry.pathname or None
+
+    def get_remaining_entries(self):
+        l = []
+        for i in self.buffer:
+            if not i in self.random_buffer:
+                l.append(i)
+        return l
+
+    def change_active_entry(self, direction):
+        if not self.buffer: return
+        entry = self.get_active_entry()
+        if self.random:
+            entries = self.get_remaining_entries()
+            if entries == [] and not self.repeat:
+                return None
+            if entries == [] and self.repeat:
+                self.random_buffer = []
+                entries = self.buffer
+            if entry: entry.set_active(0)
+            entry = whrandom.choice(entries)
+        elif entry:
+            index = self.buffer.index(entry)+direction
+            if not (index in range(len(self.buffer)) or self.repeat):
+                return None
+            entry.set_active(0)
+            entry = self.buffer[index % len(self.buffer)]
+        else:
+            entry = self.buffer[0]
+        entry.set_active(1)
+        # eee - hmm
+        if entry in self.random_buffer: self.random_buffer = [entry]
+        else: self.random_buffer.append(entry)
+        self.update(force = 1)
+        return entry
+
+    def get_active_entry(self):
+        for entry in self.buffer:
+            if entry.is_active(): return entry
+
+    def command_play(self):
+        if not self.buffer: return
+        entry = self.get_active_entry()
+        if entry: entry.set_active(0)
+        entry = self.current()
+        entry.set_active(1)
+        # eee - hmm
+        if entry in self.random_buffer: self.random_buffer = [entry]
+        else: self.random_buffer.append(entry)
+        self.update(force = 1)
+        app.player.play(entry.pathname, 0)
+
+    def command_mark(self):
+        if not self.buffer: return
+        self.buffer[self.bufptr].toggle_marked()
+        self.cursor_move(1)
+
+    def command_mark_all(self):
+        for entry in self.buffer:
+            entry.set_marked(1)
+        app.status("Almost there...", 1)
+        self.update(force = 1)
+
+    def command_clear_marks(self):
+        for entry in self.buffer:
+            entry.set_marked(0)
+        app.status("Cleared all marks...", 1)
+        self.update(force = 1)
+
+    def command_delete(self):
+        if not self.buffer: return
+        current_entry = self.current()
+        for entry in self.buffer[:]:
+            if entry.is_marked():
+                self.buffer.remove(entry)
+        try: self.bufptr = self.buffer.index(current_entry)
+        except ValueError: self.bufptr = 0
+        self.update(force = 1)
+
+    def command_move(self):
+        if not self.buffer: return
+        current_entry = self.current()
+        if current_entry.is_marked(): return    # sanity check
+        l = []
+        for entry in self.buffer[:]:
+            if entry.is_marked():
+                l.append(entry)
+                self.buffer.remove(entry)
+        self.bufptr = self.buffer.index(current_entry)
+        self.buffer[self.bufptr:self.bufptr] = l
+        self.update(force = 1)
+
+    def command_shuffle(self):
+        l = []
+        while len(self.buffer) != 0:
+            entry = whrandom.choice(self.buffer)
+            self.buffer.remove(entry)
+            l.append(entry)
+        self.buffer = l
+        self.bufptr = 0
+        self.update(force = 1)
+        app.status("Shuffled playlist... Oops?", 1)
+
+    def command_sort(self):
+        self.buffer.sort(lambda x, y: x.filename > y.filename or -1)
+        self.bufptr = 0
+        self.update(force = 1)
+        app.status("Sorted playlist...", 1)
+
+    def command_toggle_repeat(self):
+        self.repeat = not self.repeat
+        app.status("Repeat %s" % (self.repeat and "on" or "off"), 1)
+        self.change_name()
+        self.parent.update_title()
+
+    def command_toggle_random(self):
+        self.random = not self.random
+        app.status("Random %s" % (self.random and "on" or "off"), 1)
+        self.change_name()
+        self.parent.update_title()
+
+    def command_save_playlist(self):
+        self.set_input_mode(1)
+        self.input_prompt = "Save playlist"
+        self.input_string = app.win_filelist.cwd
+        self.do_input_hook = None
+        self.stop_input_hook = self.stop_save_playlist
+        self.do_input()
+
+    ## We have the result in self.input_string
+    def stop_save_playlist(self, reason):
+        self.set_input_mode(0)
+        if reason == "cancel":
+            app.status("cancel", 1)
+            return
+        filename = self.input_string
+        if not filename: return
+        if filename[0] != '/':
+            filename = "%s%s" % (app.win_filelist.cwd, filename)
+        if not RE_PLAYLIST.match(filename):
+            filename = "%s%s" % (filename, '.m3u')
+        try:
+            file = open(filename, "w")
+            for entry in self.buffer:
+                file.write("%s\n" % entry.pathname)
+            file.close()
+            app.status("ok", 1)
+        except IOError:
+            app.status("Cannot write playlist!", 1)
+
+# ------------------------------------------
+class Player:
+    regex = re.compile("Frame#\s*(\d+)\s*\[\s*(\d+)")
+
+    def __init__(self):
+        self.stopped = 1
+        self.paused = 0
+        self.pstdout = os.pipe()
+        self.pstderr = os.pipe()
+        self.pathname = None
+        self.filename = None
+        self.seek_step = 1
+        self.seek_time = None
+        self.frames_done = None
+        self.frames_left = None
+        self.pid = None
+        self.start_time = None
+        self.start_pathname = None
+        self.start_frame = None
+
+    def is_playing(self):
+        return not self.stopped
+
+    def is_paused(self):
+        return self.paused
+
+    def is_seeking(self):
+        return self.seek_time is not None
+
+    def is_starting(self):
+        return self.start_time is not None
+
+    def play(self, pathname, frame = None):
+        if pathname is None: return
+        if self.is_playing(): self.stop()
+        try:
+            while 1: os.waitpid(self.pid, os.WNOHANG)
+        except: pass
+        if frame is None: frame = self.frames_done
+        self.pathname = pathname
+        self.filename = os.path.basename(self.pathname)
+        self.stopped = 0
+        self.paused = 0
+        signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+        self.pid = os.fork()
+        if self.pid == 0:
+            os.setpgrp()
+            os.dup2(self.pstdout[1], sys.stdout.fileno())
+            os.dup2(self.pstderr[1], sys.stderr.fileno())
+            argv = string.split(app.command % frame)
+            argv.append(pathname)
+            try: os.execv(argv[0], argv)
+            except: os._exit(1)
+        self.seek_step = 1
+        self.seek_time = None
+        self.start_time = None
+        app.set_default_status("Playing: %s" % self.filename)
+
+    def pause(self):
+        self.paused = 1
+        app.set_default_status("Paused: %s" % self.filename)
+        try: os.kill(self.pid, signal.SIGSTOP)
+        except os.error: pass
+
+    def unpause(self):
+        self.paused = 0
+        app.set_default_status("Playing: %s" % self.filename)
+        try: os.kill(self.pid, signal.SIGCONT)
+        except os.error: pass
+
+    def stop(self):
+        self.stopped = 1
+        if self.is_paused():
+            self.unpause()
+        app.set_default_status("Stopped: %s" % self.filename)
+        try: os.kill(self.pid, signal.SIGINT)
+        except os.error: pass
+
+    def start(self, pathname, frame):
+        if pathname:
+            self.start_time = time.time()
+            self.start_pathname = pathname
+            self.start_frame = frame
+
+    def seek(self, direction):
+        if self.frames_done is None: return
+        self.seek_time = time.time()
+        self.seek_step = self.seek_step * (self.seek_step * direction > 0) + \
+                         direction
+        frames_total = self.frames_done + self.frames_left
+        self.frames_done = min(frames_total,
+                               max(0, self.frames_done + self.seek_step))
+        self.frames_left = frames_total - self.frames_done
+        self.show_position()
+
+    def set_time(self, frames_done, frames_left):
+        if self.is_seeking(): return
+        self.frames_done = frames_done
+        self.frames_left = frames_left
+        self.show_position()
+
+    def show_position(self):
+        # eee - ugly
+        time_done = self.frames_done / FPS
+        time_left = self.frames_left / FPS
+        app.counter(time_left)
+        if time_done:
+            app.progress(time_done / (time_done + time_left))
+        else:
+            app.progress(0)
+
+    def poll(self):
+        try: os.waitpid(self.pid, os.WNOHANG)
+        except os.error:
+            app.set_default_status("")
+            app.counter(0)
+            app.progress(0)
+            return 1
+
+# ------------------------------------------
+class Application:
+    def __init__(self):
+        self.player = None
+        self.keymapstack = KeymapStack()
+
+    def setup(self):
+        if termios:
+            self.tcattr = termios.tcgetattr(sys.stdin.fileno())
+            tcattr = termios.tcgetattr(sys.stdin.fileno())
+            tcattr[0] = tcattr[0] & ~(TERMIOS.IXON)
+            termios.tcsetattr(sys.stdin.fileno(), TERMIOS.TCSANOW, tcattr)
+        self.w = curses.initscr()
+        curses.cbreak()
+        curses.noecho()
+        try: curses.meta(1)
+        except AttributeError: pass
+        try: curses.curs_set(0)
+        except AttributeError: pass
+        signal.signal(signal.SIGHUP, self.signal_quit)
+        signal.signal(signal.SIGINT, self.signal_quit)
+        signal.signal(signal.SIGTERM, self.signal_quit)
+        signal.signal(signal.SIGWINCH, self.signal_resize)
+        self.win_root = RootWindow(None)
+        self.win_root.update()
+        self.win_tab = self.win_root.win_tab
+        self.win_filelist = self.win_root.win_tab.win_filelist
+        self.win_playlist = self.win_root.win_tab.win_playlist
+        self.status = self.win_root.win_status.status
+        self.set_default_status = self.win_root.win_status.set_default_status
+        self.restore_default_status = self.win_root.win_status.restore_default_status
+        self.counter = self.win_root.win_counter.counter
+        self.progress = self.win_root.win_progress.progress
+        self.player = Player()
+        self.timeout_tag = 0
+        self.timeout_dict = {}
+        self.win_filelist.listdir_maybe(time.time())
+        self.status(__version__, 2)
+
+    def cleanup(self):
+        curses.endwin()
+        termios and termios.tcsetattr(sys.stdin.fileno(), TERMIOS.TCSADRAIN, self.tcattr)
+
+    def add_timeout(self, func, timeout):
+        tag = self.timeout_tag = self.timeout_tag + 1
+        self.timeout_dict[tag] = (func, time.time() + timeout)
+        return tag
+
+    def remove_timeout(self, tag):
+        del self.timeout_dict[tag]
+
+    def check_timeout(self, now):
+        for tag, (func, timeout) in self.timeout_dict.items():
+            if now >= timeout:
+                self.remove_timeout(tag)
+                func()
+        return len(self.timeout_dict) and 0.2 or None
+
+    def run(self):
+        r = w = e = []
+        while 1:
+            now = time.time()
+            timeout = self.check_timeout(now)
+            self.win_filelist.listdir_maybe(now)
+            if self.player.is_starting():
+                timeout = 0.5
+                if now - self.player.start_time > 0.5:
+                    self.player.play(self.player.start_pathname, self.player.start_frame)
+            if self.player.is_playing():
+                timeout = 0.5
+                if (self.player.is_seeking() and
+                    now - self.player.seek_time > 0.5):
+                    self.player.play(self.player.pathname)
+                if self.player.poll():
+                    pathname = self.win_playlist.next_song()
+                    if pathname: self.player.play(pathname, 0)
+                    else: self.player.stopped = 1 # end of playlist hack
+            r = [sys.stdin, self.player.pstdout[0], self.player.pstderr[0]]
+            try: r, w, e = select.select(r, w, e, timeout)
+            except select.error: continue
+
+            # -- user input
+            if sys.stdin in r:
+                c = self.win_root.getch()
+                self.keymapstack.process(c)
+
+            # -- player input
+            if self.player.pstderr[0] in r:
+                m = Player.regex.search(os.read(self.player.pstderr[0], 256))
+                if m: self.player.set_time(string.atoi(m.group(1)),
+                                           string.atoi(m.group(2)))
+
+            # -- consume anything written on stdout
+            if self.player.pstdout[0] in r:
+                os.read(self.player.pstdout[0], 256)
+
+    def next_song(self):
+        self.player.start(self.win_playlist.next_song(), 0)
+
+    def prev_song(self):
+        self.player.start(self.win_playlist.prev_song(), 0)
+
+    def pause(self):
+        if self.player.is_playing():
+            if self.player.is_paused(): self.player.unpause()
+            else: self.player.pause()
+
+    def stop(self):
+        if self.player.is_playing(): self.player.stop()
+        else: self.player.play(self.player.pathname)
+
+    def seek(self, direction):
+        self.player.seek(direction)
+
+    ## eee - this does not work with all mixers
+    def set_volume(self, ch):
+        try:
+            vol = (ch & 0xf) * 10
+            mixer_fd = os.open("/dev/mixer", 1)
+            fcntl.ioctl(mixer_fd, 0xc0044d00, "%c%c" % (vol, vol))
+            os.close(mixer_fd)
+            app.status("Volume %d%%" % vol, 1)
+        except os.error:
+            app.status("Cannot open /dev/mixer", 1)
+
+    def quit(self):
+        if self.player and self.player.is_playing():
+            self.player.stop()
+        sys.exit(0)
+
+    def signal_resize(self, sig, frame):
+        ## duh
+        curses.endwin()
+        self.w.refresh()
+        self.win_root.resize()
+        self.win_root.update()
+
+    def signal_quit(self, sig, frame):
+        self.quit()
+
+# ------------------------------------------
+def die(reason=None):
+    reason and sys.stderr.write(reason)
+    sys.exit(1)
+
+# ------------------------------------------
+def main():
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "")
+    except:
+        die("Usage: %s [ file.mp3 | playlist.m3u ] ...\n" % sys.argv[0])
+
+    global app
+    app = Application()
+    player = "mpg123"
+    for path in string.split(os.environ['PATH'], ":"):
+        if os.path.exists(os.path.join(path, player)):
+            app.command = "%s -qv -k%%d" % os.path.join(path, player)
+            break
+    else:
+        die("Error: Cannot find %s in your PATH\n" % player)
+
+    playlist = []
+    if not sys.stdin.isatty():
+        playlist = sys.stdin.readlines()
+        os.close(0)
+        os.open("/dev/tty", 0)
+    try:
+        app.setup()
+        if args:
+            for arg in args:
+                app.win_playlist.append(arg)
+        else:
+            for line in playlist:
+                app.win_playlist.append(string.strip(line))
+        app.run()
+    except SystemExit:
+        app.cleanup()
+    except Exception:
+        app.cleanup()
+        import traceback
+        traceback.print_exc()
+
+# ------------------------------------------
+if __name__ == "__main__": main()
