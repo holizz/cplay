@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "$Id: cplay,v 1.30 2000/05/23 16:41:30 flu Exp $"
+__version__ = "$Id: cplay,v 1.31 tmp $"
 
 """
 cplay - A curses front-end for mpg123 (version >= 0.59o)
@@ -46,6 +46,7 @@ from types import *
 FPS = 38.28
 RE_SONG = re.compile(".*\.[Mm][Pp][123]$")
 RE_PLAYLIST = re.compile(".*\.[Mm]3[Uu]$")
+XTERM = re.search("rxvt|xterm", os.environ['TERM']) and 1 or 0
 
 # ------------------------------------------
 class Stack:
@@ -246,6 +247,7 @@ class StatusWindow(Window):
     def set_default_status(self, message):
         self.default_message = message
         self.status(message)
+        XTERM and sys.stderr.write("\033]0;%s\007" % (message or "cplay"))
 
     def restore_default_status(self):
         self.status(self.default_message)
@@ -1039,6 +1041,7 @@ class Application:
         self.timeout_tag = 0
         self.timeout_dict = {}
         self.win_filelist.listdir_maybe(time.time())
+        self.set_default_status("")
         self.status(__version__, 2)
 
     def cleanup(self):
