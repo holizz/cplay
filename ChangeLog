@@ -1,3 +1,10 @@
+2002-10-11  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay (1.46pre5)
+	- string.punctuation kludge for python 1.5
+	- recursive search in filelist!
+        - include 669|mtm|it in mikmod regex (Samium Gromoff)
+
 2002-08-28  Ulf Betlehem  <flu@iki.fi>
 
 	* cplay (1.46pre4)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.46pre4"
+__version__ = "cplay 1.46pre5"
 
 """
 cplay - A curses front-end for various audio players
@@ -75,7 +75,7 @@ for DSP in ["/dev/sound/dsp", "/dev/dsp"]:
 for MIXER in ["/dev/sound/mixer", "/dev/mixer"]:
     if os.path.exists(MIXER): break
 
-CONTROL_FIFO = '/var/tmp/cplay_control'
+CONTROL_FIFO = "/var/tmp/cplay_control"
 
 # ------------------------------------------
 def which(program):
@@ -131,6 +131,7 @@ class Keymap:
 # ------------------------------------------
 class Window:
 
+    string.punctuation = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'  # 1.5 kludge
     chars = string.letters+string.digits+string.punctuation+string.whitespace
 
     t = ['?'] * 256
@@ -156,7 +157,7 @@ class Window:
 
     def getmaxyx(self):
         y, x = self.w.getmaxyx()
-        try: curses.version # tested with '1.2' and '1.6'
+        try: curses.version # tested with 1.2 and 1.6
         except AttributeError:
             # pyncurses - emulate traditional (silly) behavior
             y, x = y+1, x+1
@@ -200,10 +201,10 @@ class HelpWindow(Window):
 
   Global                               Filelist
   ------                               --------
-  Up, C-p, k, Down, C-n, j,            Space, a  : add file/dir to playlist
-  PgUp, K, PgDown, J                   Enter     : chdir or play
-  Home, g, End, G                      o         : open path
-              : movement               Backspace : parent dir
+  Up, C-p, k, Down, C-n, j,            Space, a : add file/dir to playlist
+  PgUp, K, PgDown, J                   Enter    : chdir or play
+  Home, g, End, G                      o, s     : open path/search recursively
+              : movement               BS, .    : parent dir
   Tab         : filelist/playlist      
   n, p        : next/prev track        Playlist
   z, x        : toggle pause/stop      --------
@@ -485,6 +486,7 @@ class ListWindow(Window):
         app.keymapstack.push(self.input_keymap)
         self.input_prompt = prompt
         self.input_string = data
+        self.do_input()
 
     def do_input(self, *args):
         if self.do_input_hook:
@@ -596,6 +598,45 @@ class FilelistWindow(ListWindow):
         self.keymap.bind(' ', self.command_add, ())
         self.keymap.bind('a', self.command_add_recursively, ())
         self.keymap.bind('o', self.command_goto, ())
+        self.keymap.bind('s', self.command_search_recursively, ())
+
+    def command_search_recursively(self):
+        self.do_input_hook = None
+        self.stop_input_hook = self.stop_search_recursively
+        self.start_input(_("search"))
+        self.do_input()
+
+    def stop_search_recursively(self, reason):
+        if reason == _("cancel") or not self.input_string:
+            app.status(reason, 1)
+            return
+        re_tmp = re.compile(self.input_string, re.I)
+        results = []
+        for entry in self.buffer[1:]:
+            if re_tmp.search(entry.filename):
+                results.append(entry)
+            if os.path.isdir(entry.pathname):
+                try: self.search_recursively(re_tmp, entry.pathname, results)
+                except: pass
+        if not self.search_mode:
+            self.chdir(_(os.path.join(self.cwd,"search results")))
+            self.search_mode = 1
+        self.buffer = results
+        self.bufptr = 0
+        self.parent.update_title()
+        self.update(force = 1)
+        app.restore_default_status()
+
+    def search_recursively(self, re_tmp, dir, results):
+        for filename in os.listdir(dir):
+            pathname = os.path.join(dir, filename)
+            if re_tmp.search(filename):
+                if os.path.isdir(pathname) or \
+                VALID_PLAYLIST(filename) or \
+                VALID_SONG(filename):
+                    results.append(ListEntry(pathname))
+            if os.path.isdir(pathname):
+                self.search_recursively(re_tmp, pathname, results)
 
     def update_name(self):
         pos = "%s-%s/%s" % (self.scrptr+min(1, len(self.buffer)),
@@ -619,6 +660,7 @@ class FilelistWindow(ListWindow):
 
     def listdir(self, quiet=0, prevdir=None):
         quiet or app.status(_("Reading directory..."))
+        self.search_mode = 0
         dirs = []
         files = []
         try:
@@ -628,19 +670,23 @@ class FilelistWindow(ListWindow):
                 if entry[0] == ".":
                     continue
                 if os.path.isdir(self.cwd + entry):
-                    dirs.append("%s/" % entry)
+                    dirs.append(entry)
                 elif VALID_SONG(entry):
-                    files.append("%s" % entry)
+                    files.append(entry)
                 elif VALID_PLAYLIST(entry):
-                    files.append("%s" % entry)
+                    files.append(entry)
         except os.error: pass
-        self.buffer = [["../"], []][self.cwd == "/"]
         dirs.sort()
         files.sort()
-        self.buffer = self.buffer + dirs + files
+        dots = ListEntry(os.path.join(self.cwd, ".."))
+        self.buffer = [[dots], []][self.cwd == "/"]
+        for i in dirs + files:
+            self.buffer.append(ListEntry(os.path.join(self.cwd, i)))
         if prevdir:
-            try: self.bufptr = self.buffer.index("%s/" % prevdir)
-            except ValueError: self.bufptr = 0
+            for self.bufptr in range(len(self.buffer)):
+                if self.buffer[self.bufptr].filename == prevdir: break
+            else:
+                self.bufptr = 0
         elif self.oldposition.has_key(self.cwd):
             self.bufptr = self.oldposition[self.cwd]
         else:
@@ -662,16 +708,17 @@ class FilelistWindow(ListWindow):
         self.cwd = self.normpath(dir)
 
     def command_chdir_or_play(self):
-        if os.path.isdir(self.cwd + self.current()):
-            self.chdir(self.cwd + self.current())
+        if not self.buffer: return
+        if os.path.isdir(self.current().pathname):
+            self.chdir(self.current().pathname)
             self.listdir()
-        elif VALID_SONG(self.current()):
-            app.play(self.cwd + self.current())
+        elif VALID_SONG(self.current().pathname):
+            app.play(self.current().pathname)
 
     def command_chparentdir(self):
         dir = os.path.basename(os.path.normpath(self.cwd))
         self.chdir(self.cwd + "..")
-        self.listdir(prevdir=dir)
+        self.listdir(prevdir="%s/" % dir)
 
     def command_goto(self):
         self.start_input(_("goto"))
@@ -684,7 +731,7 @@ class FilelistWindow(ListWindow):
             app.status(_("cancel"), 1)
             return
         dir = os.path.expanduser(self.input_string)
-        if dir[0] != '/': dir = "%s%s" % (self.cwd, dir)
+        if dir[0] != '/': dir = os.path.join(self.cwd, dir)
         if not os.path.isdir(dir):
             app.status(_("Not a directory!"), 1)
             return
@@ -692,41 +739,14 @@ class FilelistWindow(ListWindow):
         self.listdir()
 
     def command_add(self):
-        if (os.path.isfile(self.cwd + self.current()) and
-            VALID_SONG(self.current())):
-            app.win_playlist.append(self.cwd + self.current())
+        if (os.path.isfile(self.current().pathname) and
+            VALID_SONG(self.current().filename)):
+            app.win_playlist.append(self.current().pathname)
             self.cursor_move(+1)
 
     def command_add_recursively(self):
-        app.win_playlist.append(self.cwd + self.current())
+        app.win_playlist.append(self.current().pathname)
         self.cursor_move(+1)
-
-# ------------------------------------------
-class PlaylistEntry:
-    def __init__(self, pathname):
-        self.pathname = pathname
-        self.filename = os.path.basename(pathname)
-        self.marked = 0
-        self.active = 0
-        self.attrib = curses.A_BOLD
-
-    def set_marked(self, value):
-        self.marked = value
-
-    def toggle_marked(self):
-        self.marked = not self.marked
-
-    def is_marked(self):
-        return self.marked == 1
-
-    def set_active(self, value):
-        self.active = value
-
-    def is_active(self):
-        return self.active == 1
-
-    def __str__(self):
-        return "%s %s" % (self.is_marked() and "#" or " ", self.filename)
 
 # ------------------------------------------
 class PlaylistWindow(ListWindow):
@@ -773,8 +793,7 @@ class PlaylistWindow(ListWindow):
             dirs = filter(os.path.isdir, entries)
             songs.sort()
             for song in songs:
-                entry = PlaylistEntry(song)
-                self.buffer.append(entry)
+                self.buffer.append(ListEntry(song))
             dirs.sort()
             for subdir in dirs:
                 self.add_dir(subdir)
@@ -785,15 +804,16 @@ class PlaylistWindow(ListWindow):
             self.add_dir(pathname)
             app.restore_default_status()
         elif VALID_PLAYLIST(pathname):
+            dirname = os.path.dirname(pathname)
             try:
                 file = open(pathname)
                 for filename in map(string.strip, file.readlines()):
                     if re.match("^(#.*)?$", filename): continue
                     entry = None
-                    if not re.match("^(/|http://)", filename):
-                        entry = PlaylistEntry(os.path.join(os.path.dirname(pathname), filename))
+                    if re.match("^(/|http://)", filename):
+                        entry = ListEntry(filename)
                     else:
-                        entry = PlaylistEntry(filename)
+                        entry = ListEntry(os.path.join(dirname, filename))
                     app.status(_("Added: %s") % entry.filename, 1)
                     self.buffer.append(entry)
                 file.close()
@@ -801,7 +821,7 @@ class PlaylistWindow(ListWindow):
             except IOError:
                 app.status(_("IOError"), 1)
         else:
-            entry = PlaylistEntry(pathname)
+            entry = ListEntry(pathname)
             app.status(_("Added: %s") % entry.filename, 1)
             self.buffer.append(entry)
         self.update(force = 1)
@@ -1003,6 +1023,34 @@ class PlaylistWindow(ListWindow):
             app.status(_("Cannot write playlist!"), 1)
 
 # ------------------------------------------
+class ListEntry:
+    def __init__(self, pathname):
+        self.pathname = pathname
+        self.filename = os.path.basename(pathname)
+        if os.path.isdir(self.pathname):
+            self.filename = "%s/" % self.filename
+        self.marked = 0
+        self.active = 0
+
+    def set_marked(self, value):
+        self.marked = value
+
+    def toggle_marked(self):
+        self.marked = not self.marked
+
+    def is_marked(self):
+        return self.marked == 1
+
+    def set_active(self, value):
+        self.active = value
+
+    def is_active(self):
+        return self.active == 1
+
+    def __str__(self):
+        return "%s %s" % (self.is_marked() and "#" or " ", self.filename)
+
+# ------------------------------------------
 class Player:
     def __init__(self, commandline, files, fps=1):
         self.commandline = commandline
@@ -1029,8 +1077,8 @@ class Player:
         self.argv = string.split(self.commandline)
         self.argv[0] = which(self.argv[0])
         for i in range(len(self.argv)):
-            if self.argv[i] == '%s': self.argv[i] = str(pathname)
-            if self.argv[i] == '%d': self.argv[i] = str(offset*self.fps)
+            if self.argv[i] == "%s": self.argv[i] = str(pathname)
+            if self.argv[i] == "%d": self.argv[i] = str(offset*self.fps)
         self.pathname = pathname
         if offset == 0:
             app.progress(0)
@@ -1174,18 +1222,18 @@ class Timeout:
 class FIFOControl:
     def __init__(self, parent):
         self.parent = parent
-        try: self.fd = open(CONTROL_FIFO, 'rb+', 0)
+        try: self.fd = open(CONTROL_FIFO, "rb+", 0)
         except: self.fd = None
-        self.commands = {'pause' : self.parent.toggle_pause,
-                         'next' : self.parent.next_song,
-                         'prev' : self.parent.prev_song,
-                         'forward' : self.forward,
-                         'backward' : self.backward,
-                         'play' : self.parent.toggle_stop,
-                         'stop' : self.parent.toggle_stop,
-                         'volup' : self.parent.inc_volume,
-                         'voldown' : self.parent.dec_volume,
-                         'quit' : self.parent.quit}
+        self.commands = {"pause" : self.parent.toggle_pause,
+                         "next" : self.parent.next_song,
+                         "prev" : self.parent.prev_song,
+                         "forward" : self.forward,
+                         "backward" : self.backward,
+                         "play" : self.parent.toggle_stop,
+                         "stop" : self.parent.toggle_stop,
+                         "volup" : self.parent.inc_volume,
+                         "voldown" : self.parent.dec_volume,
+                         "quit" : self.parent.quit}
 
     def handle_command(self):
         command = string.strip(self.fd.readline())
@@ -1280,7 +1328,7 @@ class Application:
         if pathname is None or offset is None: return
         if not self.player.is_stopped(): self.player.stop(quiet=1)
         for self.player in PLAYERS:
-            if self.player.re_files.match(pathname):
+            if self.player.re_files.search(pathname):
                 if self.player.setup(pathname, offset): break
         else:
             app.status(_("Player not found!"), 1)
@@ -1390,10 +1438,10 @@ def main():
     try:
         app.setup()
         for opt, optarg in opts:
-            if opt == '-r': app.win_playlist.command_toggle_repeat()
-            if opt == '-R': app.win_playlist.command_toggle_random()
-            if opt == '-v': app.use_pcm_volume()
-            if opt == '-V': app.use_master_volume()
+            if opt == "-r": app.win_playlist.command_toggle_repeat()
+            if opt == "-R": app.win_playlist.command_toggle_random()
+            if opt == "-v": app.use_pcm_volume()
+            if opt == "-V": app.use_master_volume()
         if args or playlist:
             for item in args or playlist:
                 app.win_playlist.append(item)
@@ -1409,17 +1457,17 @@ def main():
 # ------------------------------------------
 
 PLAYERS = [
-    FrameOffsetPlayer("mpg321 -q -v -k %d %s", ".*\.mp[123]$", 38.28),
-    FrameOffsetPlayer("ogg123 -q -v -k %d %s", ".*\.ogg$"),
-    FrameOffsetPlayer("splay -f -k %d %s", ".*\.mp[123]$", 38.28),
-    FrameOffsetPlayer("mpg123 -q -v -k %d %s", ".*\.mp[123]$", 38.28),
-    NoOffsetPlayer("madplay -q -v --no-tty-control %s", ".*\.mp[123]$"),
-    NoOffsetPlayer("mikmod -p1 -t %s", "(^mod\.|.*\.(mod|xm|fm|s3m|med))$")
+    FrameOffsetPlayer("mpg321 -q -v -k %d %s", "\.mp[123]$", 38.28),
+    FrameOffsetPlayer("ogg123 -q -v -k %d %s", "\.ogg$"),
+    FrameOffsetPlayer("splay -f -k %d %s", "\.mp[123]$", 38.28),
+    FrameOffsetPlayer("mpg123 -q -v -k %d %s", "\.mp[123]$", 38.28),
+    NoOffsetPlayer("madplay -q -v --no-tty-control %s", "\.mp[123]$"),
+    NoOffsetPlayer("mikmod -p1 -t %s", "(^mod\.|\.(mod|xm|fm|s3m|med|col|669|it|mtm)$)")
     ]
 
 def VALID_SONG(name):
     for player in PLAYERS:
-        if player.re_files.match(name):
+        if player.re_files.search(name):
             return 1
 
 RE_PLAYLIST = re.compile(".*\.m3u$", re.I)
