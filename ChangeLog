@@ -1,3 +1,17 @@
+2002-08-21  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay (1.46pre2)
+	- allow printable chars as input
+	- alias commands: Q for q and = for +
+	- grid bug removed from line number display
+	- keep current position after auto filelist updates
+	- quiet auto filelist updates (Martin Michlmayr)
+	- select child in filelist after a parent command
+	- parse player output only once every second
+	- PCM/MASTER volume commands show current volume
+
+	* LICENSE: new file
+
 2002-03-31  Ulf Betlehem  <flu@iki.fi>
 	
 	* cplay (1.46pre1)

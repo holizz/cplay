@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.46pre1"
+__version__ = "cplay 1.46pre2"
 
 """
 cplay - A curses front-end for various audio players
@@ -82,6 +82,10 @@ def which(program):
             return os.path.join(path, program)
 
 # ------------------------------------------
+#def log(msg):
+#    open("log", "a").write("%s\n" % msg)
+
+# ------------------------------------------
 class Stack:
     def __init__(self):
         self.items = ()
@@ -125,10 +129,11 @@ class Keymap:
 # ------------------------------------------
 class Window:
 
+    chars = string.letters+string.digits+string.punctuation+string.whitespace
+
     t = ['?'] * 256
-    for i in range(0x20, 0x7f): t[i] = chr(i)
-    for c in string.letters: t[ord(c)] = c
-    translationTable = string.join(t, "")
+    for c in chars: t[ord(c)] = c
+    translationTable = string.join(t, ""); del t
 
     def __init__(self, parent):
         self.parent = parent
@@ -327,14 +332,14 @@ class RootWindow(Window):
         keymap.bind([curses.KEY_LEFT, 2], app.seek, (-1,)) # Left, C-b
         keymap.bind([curses.KEY_RIGHT, 6], app.seek, (1,)) # Right, C-f
         keymap.bind(range(48,58), app.key_volume) # 1234567890
-        keymap.bind('+', app.inc_volume, ())
+        keymap.bind(['+', '='], app.inc_volume, ())
         keymap.bind('-', app.dec_volume, ())
         keymap.bind('n', app.next_song, ())
         keymap.bind('p', app.prev_song, ())
         keymap.bind('z', app.toggle_pause, ())
         keymap.bind('x', app.toggle_stop, ())
         keymap.bind('t', app.toggle_counter_mode, ())
-        keymap.bind('q', app.quit, ())
+        keymap.bind(['Q', 'q'], app.quit, ())
         keymap.bind('v', app.use_pcm_volume, ())
         keymap.bind('V', app.use_master_volume, ())
         app.keymapstack.push(keymap)
@@ -435,8 +440,7 @@ class ListWindow(Window):
         self.keymap.bind(['/', 19], self.start_search,
                          (_("forward-isearch"), 1))
         self.input_keymap = Keymap()
-        self.input_keymap.bind(range(32, 128), self.do_input)
-        self.input_keymap.bind('\t', self.do_input)
+        self.input_keymap.bind(list(Window.chars), self.do_input)
         self.input_keymap.bind(curses.KEY_BACKSPACE, self.do_input, (8,))
         self.input_keymap.bind(['\a', 27], self.stop_input, (_("cancel"),))
         self.input_keymap.bind('\n', self.stop_input, (_("ok"),))
@@ -592,7 +596,7 @@ class FilelistWindow(ListWindow):
         self.keymap.bind('o', self.command_goto, ())
 
     def update_name(self):
-        pos = "%s-%s/%s" % (self.scrptr,
+        pos = "%s-%s/%s" % (self.scrptr+min(1, len(self.buffer)),
                             min(self.scrptr+self.rows, len(self.buffer)),
                             len(self.buffer))
         self.name = _("Filelist: ")
@@ -607,14 +611,12 @@ class FilelistWindow(ListWindow):
     def listdir_maybe(self, now=0):
         if now < self.mtime_when+2: return
         self.mtime_when = now
-        try:
-            mtime = os.stat(self.cwd)[8]
-            self.mtime == mtime or self.listdir()
-            self.mtime = mtime
+        self.oldposition[self.cwd] = self.bufptr
+        try: self.mtime == os.stat(self.cwd)[8] or self.listdir(quiet=1)
         except os.error: pass
 
-    def listdir(self):
-        app.status(_("Reading directory..."))
+    def listdir(self, quiet=0, prevdir=None):
+        quiet or app.status(_("Reading directory..."))
         dirs = []
         files = []
         try:
@@ -634,13 +636,16 @@ class FilelistWindow(ListWindow):
         dirs.sort()
         files.sort()
         self.buffer = self.buffer + dirs + files
-        if self.oldposition.has_key(self.cwd):
+        if prevdir:
+            try: self.bufptr = self.buffer.index("%s/" % prevdir)
+            except ValueError: self.bufptr = 0
+        elif self.oldposition.has_key(self.cwd):
             self.bufptr = self.oldposition[self.cwd]
         else:
             self.bufptr = 0
         self.parent.update_title()
         self.update(force = 1)
-        app.restore_default_status()
+        quiet or app.restore_default_status()
 
     def normpath(self, dir):
         dir = dir and dir + '/'
@@ -662,8 +667,9 @@ class FilelistWindow(ListWindow):
             app.play(self.cwd + self.current())
 
     def command_chparentdir(self):
+        dir = os.path.basename(os.path.normpath(self.cwd))
         self.chdir(self.cwd + "..")
-        self.listdir()
+        self.listdir(prevdir=dir)
 
     def command_goto(self):
         self.start_input(_("goto"))
@@ -725,7 +731,7 @@ class PlaylistWindow(ListWindow):
     def __init__(self, parent):
         ListWindow.__init__(self, parent)
         self.name = _("Playlist")
-	self.pathname = None
+        self.pathname = None
         self.repeat = 0
         self.random = 0
         self.random_buffer = []
@@ -746,7 +752,7 @@ class PlaylistWindow(ListWindow):
         self.keymap.bind('C', self.command_clear_regexp, ())
 
     def update_name(self):
-        pos = "%s-%s/%s" % (self.scrptr,
+        pos = "%s-%s/%s" % (self.scrptr+min(1, len(self.buffer)),
                             min(self.scrptr+self.rows, len(self.buffer)),
                             len(self.buffer))
         self.name = _("Playlist %s %s") % (
@@ -789,7 +795,7 @@ class PlaylistWindow(ListWindow):
                     app.status(_("Added: %s") % entry.filename, 1)
                     self.buffer.append(entry)
                 file.close()
-		self.pathname = pathname
+                self.pathname = pathname
             except IOError:
                 app.status(_("IOError"), 1)
         else:
@@ -969,7 +975,7 @@ class PlaylistWindow(ListWindow):
             app.status(str(e), 2)
 
     def command_save_playlist(self):
-	default = self.pathname or app.win_filelist.cwd
+        default = self.pathname or app.win_filelist.cwd
         self.start_input(_("Save playlist"), default)
         self.do_input_hook = None
         self.stop_input_hook = self.stop_save_playlist
@@ -989,7 +995,7 @@ class PlaylistWindow(ListWindow):
             for entry in self.buffer:
                 file.write("%s\n" % entry.pathname)
             file.close()
-	    self.pathname = pathname
+            self.pathname = pathname
             app.status(_("ok"), 1)
         except IOError:
             app.status(_("Cannot write playlist!"), 1)
@@ -1008,6 +1014,8 @@ class Player:
         self.paused = 0
         self.time_setup = None
         self.offset = 0
+        self.buf = None
+        self.tag = None
 
     def is_stopped(self):
         return self.stopped
@@ -1026,7 +1034,7 @@ class Player:
             app.progress(0)
             self.offset = 0
             self.length = 0
-            self.values = 0
+            self.values = [0, 0]
         self.time_setup = time.time()
         return self.argv[0]
 
@@ -1068,14 +1076,20 @@ class Player:
         except Exception: pass
         quiet or app.set_default_status(_("Stopped: %s") % self.filename)
 
-    def parse_fd(self, fd):
-        os.read(fd, 256)
+    def parse_progress(self):
+        self.parse_buf()
+        if self.is_stopped(): self.tag = None
+        else: self.tag = app.timeout.add(1.0, self.parse_progress)
 
-    def parse_stderr(self):
-        self.parse_fd(self.stderr_r)
+    def read_fd(self, fd):
+        self.buf = os.read(fd, 512)
+        self.tag or self.parse_progress()
 
-    def parse_stdout(self):
-        self.parse_fd(self.stdout_r)
+    def read_stderr(self):
+        self.read_fd(self.stderr_r)
+
+    def read_stdout(self):
+        self.read_fd(self.stdout_r)
 
     def poll(self):
         try: os.waitpid(self.pid, os.WNOHANG)
@@ -1109,8 +1123,9 @@ class Player:
 class FrameOffsetPlayer(Player):
     re_progress = re.compile("Time.*\s(\d+):(\d+).*\[(\d+):(\d+)")
 
-    def parse_fd(self, fd):
-        match = self.re_progress.search(os.read(fd, 256))
+    def parse_buf(self):
+        match = self.re_progress.search(self.buf or '')
+        self.buf = None
         if match and not self.step:
             m1, s1, m2, s2 = map(string.atoi, match.groups())
             head, tail = m1*60+s1, m2*60+s2
@@ -1121,8 +1136,9 @@ class NoOffsetPlayer(Player):
     re_progress = re.compile(
         "\s*(\d+):(\d+):(\d+)")
 
-    def parse_fd(self, fd):
-        match = self.re_progress.search(os.read(fd, 256))
+    def parse_buf(self):
+        match = self.re_progress.search(self.buf or '')
+        self.buf = None
         if match and not self.step:
             h, m, s = map(string.atoi, match.groups())
             head = tail = h*3600+m*60+s
@@ -1156,8 +1172,8 @@ class Timeout:
 class Application:
     def __init__(self):
         self.keymapstack = KeymapStack()
-	self.mixer_read = SOUND_MIXER_READ_VOLUME
-	self.mixer_write = SOUND_MIXER_WRITE_VOLUME
+        self.mixer_read = SOUND_MIXER_READ_VOLUME
+        self.mixer_write = SOUND_MIXER_WRITE_VOLUME
 
     def setup(self):
         if tty:
@@ -1219,10 +1235,10 @@ class Application:
                 self.keymapstack.process(c)
             ## player input
             if self.player.stderr_r in r:
-                self.player.parse_stderr()
+                self.player.read_stderr()
             ## player input
             if self.player.stdout_r in r:
-                self.player.parse_stdout()
+                self.player.read_stdout()
 
     def play(self, pathname, offset = 0):
         self.seek_tag = None
@@ -1297,14 +1313,14 @@ class Application:
             app.status(_("Cannot open mixer device %s") % MIXER, 1)
 
     def use_pcm_volume(self):
-	self.mixer_read = SOUND_MIXER_READ_PCM
-	self.mixer_write = SOUND_MIXER_WRITE_PCM
-	app.status(_("Using PCM volume"), 1)
+        self.mixer_read = SOUND_MIXER_READ_PCM
+        self.mixer_write = SOUND_MIXER_WRITE_PCM
+        self.get_volume() and app.status(_("PCM volume %s%%" % self.volume), 1)
 
     def use_master_volume(self):
-	self.mixer_read = SOUND_MIXER_READ_VOLUME
-	self.mixer_write = SOUND_MIXER_WRITE_VOLUME
-	app.status(_("Using MASTER volume"), 1)
+        self.mixer_read = SOUND_MIXER_READ_VOLUME
+        self.mixer_write = SOUND_MIXER_WRITE_VOLUME
+        self.get_volume() and app.status(_("MASTER volume %s%%" % self.volume), 1)
 
     def quit(self):
         if not self.player.is_stopped(): self.player.stop(quiet=1)
