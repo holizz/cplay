@@ -1,3 +1,15 @@
+2003-10-01  Ulf Betlehem  <flu@iki.fi>
+
+	*** 1.49pre2 ***
+	
+	* cplay:
+	- possible bugfix for increasing CPU usage
+
+2003-09-28  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay:
+	- use curses.KEY_ENTER for xwsh (wave++)
+
 2003-09-13  Ulf Betlehem  <flu@iki.fi>
 
 	*** 1.49pre1 ***

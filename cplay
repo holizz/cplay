@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.49pre1"
+__version__ = "cplay 1.49pre2"
 
 """
 cplay - A curses front-end for various audio players
@@ -668,7 +668,8 @@ class FilelistWindow(TagListWindow):
         except OSError: self.chdir(os.environ['HOME'])
         self.mtime_when = 0
         self.mtime = None
-        self.keymap.bind('\n', self.command_chdir_or_play, ())
+        self.keymap.bind(['\n', curses.KEY_ENTER],
+                         self.command_chdir_or_play, ())
         self.keymap.bind(['.', curses.KEY_BACKSPACE],
                          self.command_chparentdir, ())
         self.keymap.bind('a', self.command_add_recursively, ())
@@ -897,7 +898,8 @@ class PlaylistWindow(TagListWindow):
         self.random_next = []
         self.random_unplayed = []
         self.stop = 0
-        self.keymap.bind('\n', self.command_play, ())
+        self.keymap.bind(['\n', curses.KEY_ENTER],
+                         self.command_play, ())
         self.keymap.bind('d', self.command_delete, ())
         self.keymap.bind('D', self.command_delete_all, ())
         self.keymap.bind('m', self.command_move, (1,))
@@ -1230,7 +1232,6 @@ class Player:
         self.stopped = 0
         self.paused = 0
         self.step = 0
-        self.parse_progress()
         self.update_status()
 
     def pause(self, quiet=0):
@@ -1411,7 +1412,8 @@ class Application:
         self.input_keymap.bind(curses.KEY_BACKSPACE, self.do_input, (8,))
         self.input_keymap.bind([21, 23], self.do_input)
         self.input_keymap.bind(['\a', 27], self.cancel_input, ())
-        self.input_keymap.bind('\n', self.stop_input, ())
+        self.input_keymap.bind(['\n', curses.KEY_ENTER],
+                               self.stop_input, ())
 
     def setup(self):
         if tty:
