@@ -1,0 +1,45 @@
+.\" Copyright (C) 2000 Martin Michlmayr <tbm@cyrius.com>
+.\" This manual is freely distributable under the terms of the GPL.
+.\" It was originally written for Debian GNU/Linux (but may be used
+.\" by others).
+.\"
+.TH CPLAY 1 "December 2000"
+
+.SH NAME
+.PP
+cplay \- a front-end for various audio players
+
+.SH SYNOPSIS
+.PP
+\fBcplay\fR [ \fIfile\fP | \fIplaylist.m3u\fP ] ...
+
+.SH DESCRIPTION
+.PP
+.B cplay
+is a front-end for various audio players. It aims to provide a
+user-friendly interface with simple filelist and playlist
+control.  Invoking
+.B cplay
+without any options puts you in the filelist in which you
+can navigate around looking for audio files.  When you
+specify an audio file,
+.B cplay
+automatically adds it to the playlist which can be accessed
+by pressing the tabulator key.
+
+.PP
+Currently, the folloging audio formats ar supported: MP3 (through
+mpg123), Ogg Vorbis (through ogg123), and WAV, AU, CDR and AIFF
+(through sox).
+
+
+.SH SEE ALSO
+.PP
+.BR sox (1),
+.BR mpg123 (1)
+.BR ogg123 (1)
+
+.SH AUTHOR
+.PP
+Ulf Betlehem <flu@iki.fi>
+

@@ -1,0 +1,30 @@
+Description:
+	cplay is a curses front-end for various audio players. It aims
+	to provide a power-user-friendly interface with simple filelist
+	and playlist control. It is written in Python and can use
+	either pyncurses or the standard curses module. The list of
+	currently supported players include mpg123, ogg123 and sox.
+
+Requirements:
+	- cplay			http://www.tf.hut.fi/~flu/cplay/
+	- python 		http://www.python.org/
+	- ogg123    (optional)  http://www.vorbis.com/
+	- mpg123    (optional)	http://www.mpg123.org/
+	- sox       (optional)	http://home.sprynet.com/~cbagwell/sox.html
+	- fintl     (optional)	http://www.python.org/sigs/i18n-sig/
+	- pyncurses (optional)	http://pyncurses.sourceforge.net/
+
+Installation:
+	make install
+
+Usage:
+	cplay [ file | playlist.m3u ] ...
+
+Documentation:
+	When in doubt, press 'h' for a friendly help page.
+
+	If you would like to change the options passed to the actual
+	players just edit cplay and change the command string under:
+	"class <player>_Player".
+
+	For mpeg streaming, mpg123 v0.59r or later is recommended.

@@ -1,0 +1,34 @@
+high priority
+------------------------------------------
+- merge id3 patch
+- progress "parser" based on player class
+- toggle time done / time left
+- scrollbar / position indicator
+- hide cursor after SUSP & CONT cycle
+- tilde expansion
+- dynamic help page
+- new and more vi-friendly keymap
+- a/A = Append mp3/dir
+- i/I = Insert mp3/dir
+- playlist mark regex/pattern
+
+low priority
+------------------------------------------
+- delwin when resizing
+- toggle playlist markings
+- hierarchical playlists?
+- Python 1.4 compatibility?
+
+misc thoughts
+------------------------------------------
+- delayed play command (play after current song is finished)
+- restore xterm title (not possible with aterm, rxvt, etc?)
+- mpg123 gives buggy progress info for some mp3 files
+- should there be another way to start playing the playlist
+  from the beginning than "next track"?
+- / and ? should search
+- n and N should correspond to next and previous
+- f and b should choose next and previous track?
+- treat .m3u files as directories?
+- support slang?
+- show progress while streaming?

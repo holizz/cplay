@@ -1,0 +1,215 @@
+2000-12-08  Ulf Betlehem  <flu@iki.fi>
+
+	*** 1.41 released ***
+
+	* README: a few words about mpg123 and streaming
+	
+	* po/de.po, cplay.1: updated (Martin Michlmayr)
+
+	* po/Makefile, Makefile: use "install -c" for compatibility
+
+	* cplay:
+	  - autoplay initial playlist
+	  - is now a front-end for various audio players
+	  - ogg123 support (Martin Michlmayr)
+	  - devfs paths (Martin Michlmayr)
+	  - playlist url support (Charl P. Botha)
+	  - fixed signalling bug
+	  - minor code cleanup
+
+2000-10-19  Ulf Betlehem  <flu@iki.fi>
+
+	*** v1.40 released ***
+
+	* README: added instructions on how to change player options
+
+	* cplay: new versioning scheme
+	fixed locale setting
+	python 2.0 compatible
+	prefers standard gettext to fintl
+	delayed warnings for missing players and unknown fileformats
+	fixed hline with zero length in progressline
+	set title to xterm in cleanup
+	better support for mpg123 buffers by signalling progress groups
+
+	* README: modified usage
+
+	* Makefile: install man page
+
+	* cplay.1: man page (Martin Michlmayr)
+
+	* ChangeLog, TODO: new entry
+
+	* po/de.po: update (Martin Michlmayr)
+
+2000-09-06  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: Python 1.6 compatible
+
+2000-08-09  Ulf Betlehem  <flu@iki.fi>
+
+	* po/de.po: new file
+
+	* po/Makefile: new Makefile
+
+	* killpgmodule.c: *** empty log message ***
+
+	* README: new README
+
+	* Makefile: new Makefile
+
+2000-07-31  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: added i18n support by Martin Michlmayr
+	fixed locale support
+
+2000-07-25  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay:
+	added support for sox to play .wav, .au and other sound formats
+
+	* cplay: shows status in titlebar under X -- thanks Chmouel Boudjnah
+
+2000-05-23  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: doesn't stat() cwd when idle
+
+	* cplay: supports both pyncurses and the old cursesmodule
+
+2000-04-24  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: - restores terminal settings on exceptions
+	- global mp3 and m3u regexps
+	- new and improved keymap class
+	- removed a possible "division by zero" bug
+
+2000-03-24  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: translate evil characters to '?'
+
+2000-02-07  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: fixed a bug in FilelistWindow.add_dir()
+
+2000-01-20  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay:
+	- changed the player class so that one can hold down 'n' or 'p' when
+	  changing tracks without cplay crashing ;)
+
+2000-01-19  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: Enter now plays files bypassing the playlist
+	Space adds files to playlist
+	a adds recursively
+	z toggles pause
+	x toggles stop
+	m3u lines beginning with '#' are now silently discarded
+
+1999-12-22  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: - lot's of small changes
+
+1999-12-13  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: handles SIGWINCH correctly
+	automatically rereads current dir when modified
+	lot's of minor changes
+
+1999-10-26  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: Added two commands:
+	 R = random play order (keeps your playlist intact)
+	 S = sort playlist by filename
+
+	Removed a seldom used (also undocumented) command:
+	 N = previous track
+
+1999-05-10  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: catches os.error if os.listfiles() fails.
+
+1999-02-13  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: Added error-checking to prevent manipulating empty playlists.
+	Raised default seek speed from Pi to 4.
+
+1999-02-07  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: Corrected a feature that caused automatic loading of playlists
+	upon entering a directory where the cursor was over a .m3u file.
+
+1999-01-29  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay:
+	Uses frames_done and frames_left instead of time_done and time_left.
+	Minor code clean-up.
+
+	* cplay: Now supports at least mpg123 v0.59o through v0.59q
+
+1999-01-19  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: o  Is now "pure Python", which means there is no need for the
+	   killpgmodule.so anymore. Oh, joy!
+	o  mpg123 is now automatically located in the PATH if not specified absolutely.
+	o  Moved mark() to 'space' and pause_or_unpause() to 'p' and stop_or_unstop()
+	   to 'k'.
+	o  Playlists are now always saved with the extension .m3u.
+
+1998-12-11  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: now consumes anything written on stdout
+
+1998-11-29  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: select() now only timeouts when necessary.
+
+1998-11-20  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: added PlaylistWindow.command_mark_all()
+
+1998-11-12  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: SIGTERM -> SIGINT
+
+	* cplay: fixed sigchld bug
+	added help window
+
+1998-11-11  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: random -> whrandom
+
+	* cplay: Too many changes!
+	Reorganization
+	Change of policy
+
+1998-10-29  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: separated PLAYER and COMMAND
+	checks if the PLAYER is valid before it continues
+
+1998-10-27  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: kludged mixed case in curses constants
+
+1998-10-12  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: support for curses module versions with different key-case.
+
+1998-10-05  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: changed progress bar
+
+	* killpgmodule.c: New file.
+
+1998-04-29  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: remember bufptr of directories
+
+1998-04-20  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: code cleanup
+
+1998-04-18  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay: New file.
