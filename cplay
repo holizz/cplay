@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.46pre2"
+__version__ = "cplay 1.46pre3"
 
 """
 cplay - A curses front-end for various audio players
@@ -74,6 +74,8 @@ for DSP in ["/dev/sound/dsp", "/dev/dsp"]:
     if os.path.exists(DSP): break
 for MIXER in ["/dev/sound/mixer", "/dev/mixer"]:
     if os.path.exists(MIXER): break
+
+CONTROL_FIFO = '/var/tmp/cplay_control'
 
 # ------------------------------------------
 def which(program):
@@ -1169,11 +1171,40 @@ class Timeout:
         return len(self.dict) and 0.2 or None
 
 # ------------------------------------------
+class FIFOControl:
+    def __init__(self, parent):
+        self.parent = parent
+        try: self.fd = open(CONTROL_FIFO, 'rb+', 0)
+        except: self.fd = None
+        self.commands = {'pause' : self.parent.toggle_pause,
+                         'next' : self.parent.next_song,
+                         'prev' : self.parent.prev_song,
+                         'forward' : self.forward,
+                         'backward' : self.backward,
+                         'play' : self.parent.toggle_stop,
+                         'stop' : self.parent.toggle_stop,
+                         'volup' : self.parent.inc_volume,
+                         'voldown' : self.parent.dec_volume,
+                         'quit' : self.parent.quit}
+
+    def handle_command(self):
+        command = string.strip(self.fd.readline())
+        if command in self.commands.keys():
+            self.commands[command]()
+
+    def forward(self):
+        self.parent.seek(1)
+
+    def backward(self):
+        self.parent.seek(-1)
+
+# ------------------------------------------
 class Application:
     def __init__(self):
         self.keymapstack = KeymapStack()
         self.mixer_read = SOUND_MIXER_READ_VOLUME
         self.mixer_write = SOUND_MIXER_WRITE_VOLUME
+        self.control = FIFOControl(self)
 
     def setup(self):
         if tty:
@@ -1216,6 +1247,8 @@ class Application:
         tty and tty.tcsetattr(sys.stdin.fileno(), tty.TCSADRAIN, self.tcattr)
 
     def run(self):
+        R = [sys.stdin, self.player.stdout_r, self.player.stderr_r]
+        self.control.fd and R.append(self.control.fd)
         while 1:
             now = time.time()
             timeout = self.timeout.check(now)
@@ -1226,7 +1259,6 @@ class Application:
                     pathname = self.win_playlist.next_song()
                     if pathname: self.play(pathname)
                     else: self.player.stopped = 1 # end of playlist hack
-            R = [sys.stdin, self.player.stdout_r, self.player.stderr_r]
             try: r, w, e = select.select(R, [], [], timeout)
             except select.error: continue
             ## user input
@@ -1239,6 +1271,8 @@ class Application:
             ## player input
             if self.player.stdout_r in r:
                 self.player.read_stdout()
+            if self.control.fd in r:
+                self.control.handle_command()
 
     def play(self, pathname, offset = 0):
         self.seek_tag = None
