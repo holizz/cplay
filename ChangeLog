@@ -1,3 +1,18 @@
+2003-04-07  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay(1.47pre5):
+	- '!' shell command with positional args
+	- TAB completion
+	- kill word/line with C-w/C-u
+	- invert tags command 'i'
+	- removed hide partial pathnames feature
+	- renamed 'X' from [manual] to [stop]
+	- bookmarks
+	- fixed .. -> ../
+	- actually chdir in filelist
+	- fixed seek/stop/pause crash
+	- minor code cleanup
+
 2003-03-02  Ulf Betlehem  <flu@iki.fi>
 
 	* cplay(1.47pre4):
