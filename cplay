@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.43"
+__version__ = "cplay 1.44pre1"
 
 """
 cplay - A curses front-end for various audio players
@@ -39,6 +39,7 @@ except ImportError: import curses
 
 try: import termios
 except ImportError: termios = None
+
 try: import TERMIOS
 except ImportError: TERMIOS = termios
 
@@ -65,11 +66,16 @@ except:
 
 # ------------------------------------------
 XTERM = re.search("rxvt|xterm", os.environ["TERM"]) and 1 or 0
+RETRY = 2.0
 
 for DSP in ["/dev/sound/dsp", "/dev/dsp"]:
     if os.path.exists(DSP): break
 for MIXER in ["/dev/sound/mixer", "/dev/mixer"]:
     if os.path.exists(MIXER): break
+
+# ------------------------------------------
+## def log(msg):
+##     f = open("log", "a"); f.write(msg); f.close()
 
 # ------------------------------------------
 def which(program):
@@ -182,24 +188,24 @@ class Window:
 class HelpWindow(Window):
     text = _("""\
 
-  Global                            Filelist
-  ------                            --------
-  Up, C-p, k,                       Space     : add to playlist
-  Down, C-n, j,                     a         : add recursively
-  PgUp, PgDown,                     g         : goto
-  Home, End : movement              Enter     : chdir or play
-  Tab       : filelist/playlist     Backspace : parent dir
-  n, p      : next/prev track       
-  z, x      : toggle pause/stop     Playlist
-  Left, Right,                      --------
-  C-b, C-f  : seek                  Enter : play track
-  C-s       : forward-isearch       Space : toggle mark
-  C-r       : backward-isearch      a, c  : mark/clear all
-  C-g, Esc  : cancel                A, C  : mark/clear regexp
-  1..9, +/- : volume                m, d  : move/delete marked tracks
-  C-l       : refresh screen        r, R  : toggle repeat/Random mode
-  h         : help                  s, S  : shuffle/Sort playlist
-  q         : quit                  o     : save playlist (to .m3u file)
+  Global                              Filelist
+  ------                              --------
+  Up, C-p, k,                         Space     : add to playlist
+  Down, C-n, j,                       a         : add recursively
+  PgUp, PgDown,                       g         : goto
+  Home, End   : movement              Enter     : chdir or play
+  Tab         : filelist/playlist     Backspace : parent dir
+  n, p        : next/prev track       
+  z, x        : toggle pause/stop     Playlist
+  Left, Right,                        --------
+  C-b, C-f    : seek                  Enter : play track
+  C-s, C-r, / : isearch               Space : toggle mark
+  t           : toggle counter mode   a, c  : mark/clear all
+  C-g, Esc    : cancel                A, C  : mark/clear regexp
+  1..9, +, -  : volume                m, d  : move/delete marked tracks
+  C-l         : refresh screen        r, R  : toggle repeat/Random mode
+  h           : help                  s, S  : shuffle/Sort playlist
+  q           : quit                  o     : save playlist (to .m3u file)
 """)
 
     def __init__(self, parent):
@@ -239,7 +245,7 @@ class ProgressWindow(Window):
         self.refresh()
 
     def progress(self, value):
-        self.value = value
+        self.value = min(value, 0.99)
         self.update()
 
 # ------------------------------------------
@@ -285,13 +291,14 @@ class StatusWindow(Window):
 class CounterWindow(Window):
     def __init__(self, parent):
         Window.__init__(self, parent)
-        self.seconds = 0
+        self.values = [0, 0]
+        self.mode = 1
 
     def newwin(self):
         return curses.newwin(1, 11, self.parent.rows-1, self.parent.cols-11)
 
     def update(self):
-        h, s = divmod(self.seconds, 3600)
+        h, s = divmod(self.values[self.mode], 3600)
         m, s = divmod(s, 60)
         self.move(0, 0)
         self.attron(curses.A_BOLD)
@@ -300,8 +307,12 @@ class CounterWindow(Window):
         self.touchwin()
         self.refresh()
 
-    def counter(self, seconds):
-        self.seconds = seconds
+    def counter(self, values):
+        self.values = values
+        self.update()
+
+    def toggle_mode(self):
+        self.mode = not self.mode
         self.update()
 
 # ------------------------------------------
@@ -310,8 +321,8 @@ class RootWindow(Window):
         Window.__init__(self, parent)
         keymap = Keymap()
         keymap.bind(12, self.update, ()) # C-l
-        keymap.bind([curses.KEY_LEFT, 2], app.seek, (-1.0,)) # Left, C-b
-        keymap.bind([curses.KEY_RIGHT, 6], app.seek, (1.0,)) # Right, C-f
+        keymap.bind([curses.KEY_LEFT, 2], app.seek, (-1,)) # Left, C-b
+        keymap.bind([curses.KEY_RIGHT, 6], app.seek, (1,)) # Right, C-f
         keymap.bind(range(48,58), app.key_volume) # 1234567890
         keymap.bind('+', app.inc_volume, ())
         keymap.bind('-', app.dec_volume, ())
@@ -319,6 +330,7 @@ class RootWindow(Window):
         keymap.bind('p', app.prev_song, ())
         keymap.bind('z', app.toggle_pause, ())
         keymap.bind('x', app.toggle_stop, ())
+        keymap.bind('t', app.toggle_counter_mode, ())
         keymap.bind('q', app.quit, ())
         app.keymapstack.push(keymap)
 
@@ -404,24 +416,26 @@ class ListWindow(Window):
         self.stop_input_hook = None
 
         self.keymap = Keymap()
-        self.keymap.bind(['k', curses.KEY_UP, 16], self.cursor_move, (-1,)) # C-p
-        self.keymap.bind(['j', curses.KEY_DOWN, 14], self.cursor_move, (1,)) # C-n
+        self.keymap.bind(['k', curses.KEY_UP, 16], self.cursor_move, (-1,))
+        self.keymap.bind(['j', curses.KEY_DOWN, 14], self.cursor_move, (1,))
         self.keymap.bind(curses.KEY_PPAGE, self.cursor_ppage, ())
         self.keymap.bind(curses.KEY_NPAGE, self.cursor_npage, ())
         self.keymap.bind(curses.KEY_HOME, self.cursor_home, ())
         self.keymap.bind(curses.KEY_END, self.cursor_end, ())
-        self.keymap.bind(18, self.start_search, (_("backward-isearch"), -1)) # C-r
-        self.keymap.bind(19, self.start_search, (_("forward-isearch"), 1)) # C-s
-
+        self.keymap.bind(['?', 18], self.start_search,
+                         (_("backward-isearch"), -1))
+        self.keymap.bind(['/', 19], self.start_search,
+                         (_("forward-isearch"), 1))
         self.input_keymap = Keymap()
         self.input_keymap.bind(range(32, 128), self.do_input)
-        self.input_keymap.bind('\t', self.do_input) # Tab
+        self.input_keymap.bind('\t', self.do_input)
         self.input_keymap.bind(curses.KEY_BACKSPACE, self.do_input, (8,))
-        self.input_keymap.bind(['\a', 27], self.stop_input, (_("cancel"),)) # C-g or Esc
-        self.input_keymap.bind('\n', self.stop_input, (_("ok"),)) # enter
+        self.input_keymap.bind(['\a', 27], self.stop_input, (_("cancel"),))
+        self.input_keymap.bind('\n', self.stop_input, (_("ok"),))
 
     def newwin(self):
-        return curses.newwin(self.parent.rows-2, self.parent.cols, self.parent.ypos+2, self.parent.xpos)
+        return curses.newwin(self.parent.rows-2, self.parent.cols,
+                             self.parent.ypos+2, self.parent.xpos)
 
     def update(self, force = 1):
         self.bufptr = max(0, min(self.bufptr, len(self.buffer) - 1))
@@ -553,11 +567,13 @@ class FilelistWindow(ListWindow):
     def __init__(self, parent):
         ListWindow.__init__(self, parent)
         self.oldposition = {}
-        self.chdir(os.getcwd())
+        try: self.chdir(os.getcwd())
+        except OSError: self.chdir(os.environ['HOME'])
         self.mtime_when = 0
         self.mtime = None
         self.keymap.bind('\n', self.command_chdir_or_play, ())
-        self.keymap.bind(['.', curses.KEY_BACKSPACE], self.command_chparentdir, ())
+        self.keymap.bind(['.', curses.KEY_BACKSPACE],
+                         self.command_chparentdir, ())
         self.keymap.bind(' ', self.command_add, ())
         self.keymap.bind('a', self.command_add_recursively, ())
         self.keymap.bind('g', self.command_goto, ())
@@ -951,6 +967,7 @@ class Player:
         self.filename = None
         self.stopped = 0
         self.paused = 0
+        self.time_setup = None
 
     def is_stopped(self):
         return self.stopped
@@ -965,6 +982,12 @@ class Player:
             if self.argv[i] == '%s': self.argv[i] = str(pathname)
             if self.argv[i] == '%d': self.argv[i] = str(offset*self.fps)
         self.pathname = pathname
+        if offset == 0:
+            app.progress(0)
+            self.offset = 0
+            self.length = 0
+            self.values = 0
+        self.time_setup = time.time()
         return self.argv[0]
 
     def play(self):
@@ -980,9 +1003,7 @@ class Player:
             except: time.sleep(1); os._exit(1)
         self.stopped = 0
         self.paused = 0
-        self.seek_step = None
-        self.time_done = 0
-        self.time_left = 0
+        self.step = 0
 
     def pause(self, quiet=0):
         self.paused = 1
@@ -1007,29 +1028,8 @@ class Player:
         except Exception: pass
         quiet or app.set_default_status(_("Stopped: %s") % self.filename)
 
-    def parse_stdout(self):
-        os.read(self.stdout_r, 256)
-
-    def parse_stderr(self):
-        os.read(self.stderr_r, 256)
-
-    def poll(self):
-        try: os.waitpid(self.pid, os.WNOHANG)
-        except:
-            app.set_default_status("")
-            app.counter(0)
-            app.progress(0)
-            return 1
-
-# ------------------------------------------
-class ProgressPlayer(Player):
-    re_progress = re.compile("Time.*\s(\d+):(\d+).*\[(\d+):(\d+)")
-
     def parse_fd(self, fd):
-        m = self.re_progress.search(os.read(fd, 256))
-        if m:
-            m1, s1, m2, s2 = map(string.atoi, m.groups())
-            self.set_position(m1*60+s1, m2*60+s2)
+        os.read(fd, 256)
 
     def parse_stderr(self):
         self.parse_fd(self.stderr_r)
@@ -1037,26 +1037,70 @@ class ProgressPlayer(Player):
     def parse_stdout(self):
         self.parse_fd(self.stdout_r)
 
-    ## todo - rewrite?
-    def seek(self, d):
-        self.seek_step = self.seek_step or 1
-        self.seek_step = self.seek_step * (self.seek_step * d > 0) + d
-        time_total = self.time_done + self.time_left
-        self.time_done = min(time_total, max(0, self.time_done+self.seek_step))
-        self.time_left = time_total - self.time_done
-        self.show_position()
+    def poll(self):
+        try: os.waitpid(self.pid, os.WNOHANG)
+        except:
+            # broken player? try again
+            if self.time_setup and (time.time() - self.time_setup) < RETRY:
+                self.play()
+                return 0
+            app.set_default_status("")
+            app.counter([0,0])
+            app.progress(0)
+            return 1
 
-    def set_position(self, time_done, time_left):
-        if self.seek_step: return
-        if self.time_done == time_done: return
-        self.time_done = time_done
-        self.time_left = time_left
+    def seek(self, direction):
+        d = direction * self.length * 0.002
+        self.step = self.step * (self.step * d > 0) + d
+        offset = min(self.length, max(0, self.offset+self.step))
+        self.set_position(offset)
+
+    def set_position(self, offset=None, length=None, values=None):
+        self.offset = offset or self.offset
+        self.length = length or self.length
+        self.values = values or self.values
         self.show_position()
 
     def show_position(self):
-        app.counter(self.time_left)  # todo - toggle mode
-        ratio = self.time_done / (self.time_done + self.time_left + 1.0)
-        app.progress(ratio)
+        app.counter(self.values)
+        app.progress(self.length and (float(self.offset) / self.length))
+
+# ------------------------------------------
+class FrameOffsetPlayer(Player):
+    re_progress = re.compile("Time.*\s(\d+):(\d+).*\[(\d+):(\d+)")
+
+    def parse_fd(self, fd):
+        match = self.re_progress.search(os.read(fd, 256))
+        if match and not self.step:
+            m1, s1, m2, s2 = map(string.atoi, match.groups())
+            head, tail = m1*60+s1, m2*60+s2
+            self.set_position(head, head+tail, [head, tail])
+
+# ------------------------------------------
+class ByteOffsetPlayer(Player):
+    re_progress = re.compile(
+        "Frame.\s*(\d+) \[\s*(\d*)\], Time.\s*(\d+):(\d+).*\[(\d+):(\d+)")
+
+    def parse_fd(self, fd):
+        match = self.re_progress.search(os.read(fd, 256))
+        if match and not self.step:
+            head, tail, m1, s1, m2, s2 = map(string.atoi, match.groups())
+            self.set_position(head, head+tail, [m1*60+s1, m2*60+s2])
+
+# ------------------------------------------
+class NoOffsetPlayer(Player):
+    re_progress = re.compile(
+        "\s*(\d+):(\d+):(\d+)")
+
+    def parse_fd(self, fd):
+        match = self.re_progress.search(os.read(fd, 256))
+        if match and not self.step:
+            h, m, s = map(string.atoi, match.groups())
+            head = tail = h*3600+m*60+s
+            self.set_position(0, 0, [head, tail])
+
+    def seek(self, *dummy):
+        return 1
 
 # ------------------------------------------
 class Timeout:
@@ -1179,15 +1223,17 @@ class Application:
 
     def toggle_stop(self):
         if not self.player.is_stopped(): self.player.stop()
-        else: self.play(self.player.pathname, self.player.time_done)
+        else: self.play(self.player.pathname, self.player.offset)
+
+    def toggle_counter_mode(self):
+        self.win_root.win_counter.toggle_mode()
 
     ## todo - support seeking when stopped?
     def seek(self, direction):
         if self.player.is_stopped(): return
-        if not isinstance(self.player, ProgressPlayer): return
         if self.seek_tag: self.timeout.remove(self.seek_tag)
-        self.player.seek(direction)
-        args = (self.player.pathname, self.player.time_done)
+        if self.player.seek(direction): return
+        args = (self.player.pathname, self.player.offset)
         self.seek_tag = self.timeout.add(0.5, self.play, args)
 
     def inc_volume(self):
@@ -1268,10 +1314,11 @@ def main():
 # ------------------------------------------
 
 PLAYERS = [
-    ProgressPlayer("mpg123 -q -v -k %d %s", ".*\.mp[123]$", 38.28),
-    ProgressPlayer("ogg123 -q -v -d oss -k %d %s", ".*\.ogg$"),
-    ProgressPlayer("splay -f %s", ".*\.mp[123]$"),
-    Player("sox %%s -t ossdsp %s" % DSP, ".*\.(aiff|au|cdr|wav)$")
+    ByteOffsetPlayer("mpg321 -q -v -k %d %s", ".*\.mp[123]$"),
+    FrameOffsetPlayer("ogg123 -q -v -d oss -k %d %s", ".*\.ogg$"),
+    FrameOffsetPlayer("mpg123 -q -v -k %d %s", ".*\.mp[123]$", 38.28),
+    FrameOffsetPlayer("splay -f -k %d %s", ".*\.mp[123]$", 38.28),
+    NoOffsetPlayer("madplay -q -v %s", ".*\.mp[123]$"),
     ]
 
 def VALID_SONG(name):
