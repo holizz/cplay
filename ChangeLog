@@ -1,3 +1,14 @@
+2003-03-02  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay(1.47pre4):
+	- X toggles manual/automatic playlist advancement  (Väinö Järvelä)
+	- C-s C-s now remembers previous isearch string
+	- minor code cleanup here and there
+	- absolute seeking with C-a and ^ for bof, C-e and $ for eof
+	- HelpWindow includes "Undocumented commands"
+	- seeking now yield similar results when stopped and paused
+	- fixed byteorder issues with mixer on different architectures?
+
 2003-02-09  Ulf Betlehem  <flu@iki.fi>
 
 	* cplay(1.47pre3):

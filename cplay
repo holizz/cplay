@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.47pre3"
+__version__ = "cplay 1.47pre4"
 
 """
 cplay - A curses front-end for various audio players
@@ -182,7 +182,6 @@ class Window:
         return curses.newwin(0, 0, 0, 0)
 
     def resize(self):
-        # todo - delwin?
         self.w = self.newwin()
         self.ypos, self.xpos = self.getbegyx()
         self.rows, self.cols = self.getmaxyx()
@@ -229,7 +228,7 @@ class StatusWindow(Window):
         Window.__init__(self, parent)
         self.default_message = ''
         self.current_message = ''
-        self.timeout_tag = None
+        self.tid = None
 
     def newwin(self):
         return curses.newwin(1, self.parent.cols-12, self.parent.rows-1, 0)
@@ -244,13 +243,13 @@ class StatusWindow(Window):
 
     def status(self, message, duration = 0):
         self.current_message = str(message)
-        if self.timeout_tag: app.timeout.remove(self.timeout_tag)
-        if duration: self.timeout_tag = app.timeout.add(duration, self.timeout)
-        else: self.timeout_tag = None
+        if self.tid: app.timeout.remove(self.tid)
+        if duration: self.tid = app.timeout.add(duration, self.timeout)
+        else: self.tid = None
         self.update()
 
     def timeout(self):
-        self.timeout_tag = None
+        self.tid = None
         self.restore_default_status()
 
     def set_default_status(self, message):
@@ -302,9 +301,11 @@ class RootWindow(Window):
         self.win_counter = CounterWindow(self)
         self.win_tab = TabWindow(self)
         keymap.bind(12, self.update, ()) # C-l
-        keymap.bind([curses.KEY_LEFT, 2], app.seek, (-1,)) # C-b
-        keymap.bind([curses.KEY_RIGHT, 6], app.seek, (1,)) # C-f
-        keymap.bind(range(48,58), app.key_volume) # 1234567890
+        keymap.bind([curses.KEY_LEFT, 2], app.seek, (-1, 1)) # C-b
+        keymap.bind([curses.KEY_RIGHT, 6], app.seek, (1, 1)) # C-f
+        keymap.bind([1, '^'], app.seek, (0, 0)) # C-a
+        keymap.bind([5, '$'], app.seek, (-1, 0)) # C-e
+        keymap.bind(range(48,58), app.key_volume) # 0123456789
         keymap.bind(['+', '='], app.inc_volume, ())
         keymap.bind('-', app.dec_volume, ())
         keymap.bind('n', app.next_song, ())
@@ -396,6 +397,7 @@ class ListWindow(Window):
         self.buffer = []
         self.bufptr = self.scrptr = 0
         self.search_direction = 0
+        self.last_match = ""
         self.keymap = Keymap()
         self.keymap.bind(['k', curses.KEY_UP, 16], self.cursor_move, (-1,))
         self.keymap.bind(['j', curses.KEY_DOWN, 14], self.cursor_move, (1,))
@@ -494,13 +496,13 @@ class ListWindow(Window):
             self.do_search(advance = direction)
 
     def stop_search(self):
+        self.last_match = app.input_string
         app.status(_("ok"), 1)
 
     def do_search(self, ch = None, advance = 0):
-        if ch in [8, 127]: # backspace
-            app.input_string = app.input_string[:-1]
-        elif ch:
-            app.input_string = "%s%c" % (app.input_string, ch)
+        if ch in [8, 127]: app.input_string = app.input_string[:-1]
+        elif ch: app.input_string = "%s%c" % (app.input_string, ch)
+        else: app.input_string = app.input_string or self.last_match
         index = self.bufptr + advance
         while 1:
             if not 0 <= index < len(self.buffer):
@@ -547,6 +549,15 @@ class HelpWindow(ListWindow):
   v           : PCM or MASTER volume   r, R  : toggle repeat/Random mode
   C-l, l      : refresh, list mode     s, S  : shuffle/Sort playlist
   h, q, Q     : help, quit?, Quit!     w, @  : write playlist, jump to current
+
+
+
+  Undocumented commands
+  ---------------------
+  X      : toggle manual/automatic playlist advancement
+  <, >   : change number of dirs to hide for pathnames
+  C-a, ^ : seek to beginning of current track (restart)
+  C-e, $ : seek to end of current track (useless?)
   """), "\n")
 
 # ------------------------------------------
@@ -812,6 +823,7 @@ class PlaylistWindow(TagListWindow):
         self.random_prev = []
         self.random_next = []
         self.random_unplayed = []
+        self.manual = 0
         self.keymap.bind('\n', self.command_play, ())
         self.keymap.bind('d', self.command_delete, ())
         self.keymap.bind('D', self.command_delete_all, ())
@@ -821,6 +833,7 @@ class PlaylistWindow(TagListWindow):
         self.keymap.bind('S', self.command_sort, ())
         self.keymap.bind('r', self.command_toggle_repeat, ())
         self.keymap.bind('R', self.command_toggle_random, ())
+        self.keymap.bind('X', self.command_toggle_manual, ())
         self.keymap.bind('w', self.command_save_playlist, ())
         self.keymap.bind('@', self.command_jump_to_active, ())
 
@@ -834,9 +847,11 @@ class PlaylistWindow(TagListWindow):
         TagListWindow.command_change_viewpoint(self, klass)
 
     def get_title(self):
-        self.name = _("Playlist %s %s") % (
-            self.repeat and _("[repeat]") or " " * len(_("[repeat]")),
-            self.random and _("[random]") or " " * len(_("[random]")))
+        space_out = lambda value, s: value and s or " "*len(s)
+        self.name = _("Playlist %s %s %s") % (
+            space_out(self.repeat, _("[repeat]")),
+            space_out(self.random, _("[random]")),
+            space_out(self.manual, _("[manual]")))
         return ListWindow.get_title(self)
 
     def append(self, item):
@@ -1025,17 +1040,20 @@ class PlaylistWindow(TagListWindow):
         app.status(_("Sorted playlist"), 1)
 
     def command_toggle_repeat(self):
-        self.repeat = not self.repeat
-        app.status(_("Repeat %s") % (self.repeat and _("on") or _("off")), 1)
-        self.parent.update_title()
+        self.toggle("repeat", _("Repeat %s"))
 
     def command_toggle_random(self):
-        self.random = not self.random
-        if self.random:
-            self.random_prev = []
-            self.random_next = []
-            self.random_unplayed = self.buffer[:]
-        app.status(_("Random %s") % (self.random and _("on") or _("off")), 1)
+        self.toggle("random", _("Random %s"))
+        self.random_prev = []
+        self.random_next = []
+        self.random_unplayed = self.buffer[:]
+
+    def command_toggle_manual(self):
+        self.toggle("manual", _("Manual %s"))
+
+    def toggle(self, attr, format):
+        setattr(self, attr, not getattr(self, attr))
+        app.status(format % (getattr(self, attr) and _("on") or _("off")), 1)
         self.parent.update_title()
 
     def command_save_playlist(self):
@@ -1110,7 +1128,7 @@ class Player:
         self.time_setup = None
         self.offset = 0
         self.buf = None
-        self.tag = None
+        self.tid = None
 
     def is_stopped(self):
         return self.stopped
@@ -1173,12 +1191,12 @@ class Player:
 
     def parse_progress(self):
         self.parse_buf()
-        if self.is_stopped(): self.tag = None
-        else: self.tag = app.timeout.add(1.0, self.parse_progress)
+        if self.is_stopped(): self.tid = None
+        else: self.tid = app.timeout.add(1.0, self.parse_progress)
 
     def read_fd(self, fd):
         self.buf = os.read(fd, 512)
-        self.tag or self.parse_progress()
+        self.tid or self.parse_progress()
 
     def read_stderr(self):
         self.read_fd(self.stderr_r)
@@ -1189,7 +1207,7 @@ class Player:
     def poll(self):
         try: os.waitpid(self.pid, os.WNOHANG)
         except:
-            # broken player? try again
+            # something broken? try again
             if self.time_setup and (time.time() - self.time_setup) < RETRY:
                 self.play()
                 return 0
@@ -1198,16 +1216,20 @@ class Player:
             app.progress(0)
             return 1
 
-    def seek(self, direction):
-        d = direction * self.length * 0.002
-        self.step = self.step * (self.step * d > 0) + d
-        offset = min(self.length, max(0, self.offset+self.step))
-        self.set_position(offset)
+    def seek(self, offset, relative):
+        if relative:
+            d = offset * self.length * 0.002
+            self.step = self.step * (self.step * d > 0) + d
+            self.offset = min(self.length, max(0, self.offset+self.step))
+        else:
+            self.step = 1
+            self.offset = (offset < 0) and self.length+offset or offset
+        self.show_position()
 
-    def set_position(self, offset=None, length=None, values=None):
-        self.offset = offset or self.offset
-        self.length = length or self.length
-        self.values = values or self.values
+    def set_position(self, offset, length, values):
+        self.offset = offset
+        self.length = length
+        self.values = values
         self.show_position()
 
     def show_position(self):
@@ -1248,17 +1270,17 @@ class Timeout:
         self.dict = {}
 
     def add(self, timeout, func, args=()):
-        tag = self.next = self.next + 1
-        self.dict[tag] = (func, args, time.time() + timeout)
-        return tag
+        tid = self.next = self.next + 1
+        self.dict[tid] = (func, args, time.time() + timeout)
+        return tid
 
-    def remove(self, tag):
-        del self.dict[tag]
+    def remove(self, tid):
+        del self.dict[tid]
 
     def check(self, now):
-        for tag, (func, args, timeout) in self.dict.items():
+        for tid, (func, args, timeout) in self.dict.items():
             if now >= timeout:
-                self.remove(tag)
+                self.remove(tid)
                 apply(func, args)
         return len(self.dict) and 0.2 or None
 
@@ -1284,10 +1306,10 @@ class FIFOControl:
             self.commands[command]()
 
     def forward(self):
-        app.seek(1)
+        app.seek(1, 1)
 
     def backward(self):
-        app.seek(-1)
+        app.seek(-1, 1)
 
 # ------------------------------------------
 class Application:
@@ -1336,8 +1358,7 @@ class Application:
         self.progress = self.win_root.win_progress.progress
         self.player = PLAYERS[0]
         self.timeout = Timeout()
-        self.seek_tag = None
-        self.start_tag = None
+        self.play_tid = None
         self.kludge = 0
         self.win_filelist.listdir()
         self.control = FIFOControl()
@@ -1356,9 +1377,10 @@ class Application:
             if not self.player.is_stopped():
                 timeout = 0.5
                 if self.kludge and self.player.poll():
-                    pathname = self.win_playlist.next_song()
-                    if pathname: self.play(pathname)
-                    else: self.player.stopped = 1 # end of playlist hack
+                    self.player.stopped = 1 # end of playlist hack
+                    if not self.win_playlist.manual:
+                        pathname = self.win_playlist.next_song()
+                        pathname and self.play(pathname)
             R = [sys.stdin, self.player.stdout_r, self.player.stderr_r]
             self.control.fd and R.append(self.control.fd)
             try: r, w, e = select.select(R, [], [], timeout)
@@ -1379,8 +1401,7 @@ class Application:
 
     def play(self, pathname, offset = 0):
         self.kludge = 0
-        self.seek_tag = None
-        self.start_tag = None
+        self.play_tid = None
         if pathname is None or offset is None: return
         self.player.stop(quiet=1)
         for self.player in PLAYERS:
@@ -1392,15 +1413,19 @@ class Application:
             return
         self.player.play()
 
+    def delayed_play(self, pathname, offset):
+        if self.play_tid: self.timeout.remove(self.play_tid)
+        self.play_tid = self.timeout.add(0.5, self.play, (pathname, offset))
+
     def next_song(self):
-        if self.start_tag: self.timeout.remove(self.start_tag)
-        args = (self.win_playlist.next_song(), 0)
-        self.start_tag = self.timeout.add(0.5, self.play, args)
+        self.delayed_play(self.win_playlist.next_song(), 0)
 
     def prev_song(self):
-        if self.start_tag: self.timeout.remove(self.start_tag)
-        args = (self.win_playlist.prev_song(), 0)
-        self.start_tag = self.timeout.add(0.5, self.play, args)
+        self.delayed_play(self.win_playlist.prev_song(), 0)
+
+    def seek(self, offset, relative):
+        self.player.seek(offset, relative)
+        self.delayed_play(self.player.pathname, self.player.offset)
 
     def toggle_pause(self):
         if not self.player.is_stopped():
@@ -1411,13 +1436,6 @@ class Application:
         if not self.player.is_stopped(): self.player.stop()
         else: self.play(self.player.pathname, self.player.offset)
 
-    def seek(self, direction):
-        if self.player.is_stopped(): return
-        if self.seek_tag: self.timeout.remove(self.seek_tag)
-        if self.player.seek(direction): return
-        args = (self.player.pathname, self.player.offset)
-        self.seek_tag = self.timeout.add(0.5, self.play, args)
-
     def inc_volume(self):
         self.get_volume() and self.set_volume(min(100, self.volume+3))
 
@@ -1425,13 +1443,14 @@ class Application:
         self.get_volume() and self.set_volume(max(0, self.volume-3))
 
     def key_volume(self, ch):
-        self.set_volume((ch & 0x0f) * 10)
+        self.set_volume((ch & 0x0f)*10)
 
     def get_volume(self):
         try:
-            import fcntl
+            import fcntl, struct
             fd = os.open(MIXER, 0)
-            self.volume = ord(fcntl.ioctl(fd, self.mixer_read, "."))
+            tmp = fcntl.ioctl(fd, self.mixer_read, struct.pack('=i', 0))
+            self.volume = struct.unpack('=i', tmp)[0] & 0xff
             os.close(fd)
             return 1
         except Exception, e:
@@ -1439,9 +1458,9 @@ class Application:
 
     def set_volume(self, v):
         try:
-            import fcntl
+            import fcntl, struct
             fd = os.open(MIXER, 1)
-            fcntl.ioctl(fd, self.mixer_write, "%c%c" % (v, v))
+            fcntl.ioctl(fd, self.mixer_write, struct.pack('=i', v | v<<8))
             os.close(fd)
             app.status(_("Volume %s%%") % v, 1)
         except Exception, e:
