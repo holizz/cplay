@@ -1,3 +1,30 @@
+2001-12-01  Ulf Betlehem  <flu@iki.fi>
+
+	*** 1.44 released ***
+	
+	* cplay:
+	- partial support for madplay
+	- partial support for mikmod (yason)
+	- removed sox support - unless someone needs it
+	- toggle counter mode: time done / time left
+	- seek acceleration based on song length
+	- avoid listing dot-files (Martin Michlmayr)
+	- remove ".." entry from root (Martin Michlmayr)
+	- show playlist upon startup if playing (Patrice Neff)
+	- removed TERMIOS warning with recent python versions
+	- add directories from command line (Han)
+	- fixed x-bug (Chris Liechti)
+	- changed write_playlist key from 'o' to 'w'
+	- changed goto command key from 'g' to 'o'
+	- added 'g' (home) and 'G' (end) keys
+	- added '/' and '?' keys for searching
+	- misc tweaks
+	
+	* cplay.1:
+	- update
+	
+	* README:
+	- update
 2001-03-15  Ulf Betlehem  <flu@iki.fi>
 
 	*** 1.43 released ***

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.44pre4"
+__version__ = "cplay 1.44"
 
 """
 cplay - A curses front-end for various audio players
@@ -592,6 +592,8 @@ class FilelistWindow(ListWindow):
             self.mtime = os.stat(self.cwd)[8]
             self.mtime_when = time.time()
             for entry in os.listdir(self.cwd):
+                if entry[0] == ".":
+                    continue
                 if os.path.isdir(self.cwd + entry):
                     self.dirs.append("%s/" % entry)
                 elif VALID_SONG(entry):
@@ -601,7 +603,8 @@ class FilelistWindow(ListWindow):
         except os.error: pass
         self.dirs.sort()
         self.files.sort()
-        self.buffer = ["../"] + self.dirs + self.files
+        self.buffer = self.dirs + self.files
+        self.cwd != "/" and self.buffer.insert(0, "../")
         if self.oldposition.has_key(self.cwd):
             self.bufptr = self.oldposition[self.cwd]
         else:
@@ -662,28 +665,8 @@ class FilelistWindow(ListWindow):
             self.cursor_move(+1)
 
     def command_add_recursively(self):
-        if os.path.isdir(self.cwd + self.current()):
-            self.add_dir(self.cwd + self.current())
-            self.cursor_move(+1)
-        elif VALID_PLAYLIST(self.current()):
-            app.win_playlist.append(self.cwd + self.current())
-            self.cursor_move(+1)
-
-    def add_dir(self, dir):
-        if os.path.isdir(dir):
-            try:
-                entries = []
-                for entry in os.listdir(dir):
-                    entries.append(os.path.join(dir, entry))
-            except os.error: return
-            songs = filter(VALID_SONG, entries)
-            dirs = filter(os.path.isdir, entries)
-            songs.sort()
-            for song in songs:
-                app.win_playlist.append(song)
-            dirs.sort()
-            for subdir in dirs:
-                self.add_dir(subdir)
+        app.win_playlist.append(self.cwd + self.current())
+        self.cursor_move(+1)
 
 # ------------------------------------------
 class PlaylistEntry:
@@ -739,8 +722,29 @@ class PlaylistWindow(ListWindow):
           or " " * len(_("[repeat]")), self.random and _("[random]")
           or " " * len(_("[random]")))
 
+    def add_dir(self, dir):
+        if os.path.isdir(dir):
+            try:
+                entries = []
+                for entry in os.listdir(dir):
+                    entries.append(os.path.join(dir, entry))
+            except os.error: return
+            songs = filter(VALID_SONG, entries)
+            dirs = filter(os.path.isdir, entries)
+            songs.sort()
+            for song in songs:
+                entry = PlaylistEntry(song)
+                self.buffer.append(entry)
+            dirs.sort()
+            for subdir in dirs:
+                self.add_dir(subdir)
+
     def append(self, pathname):
-        if VALID_PLAYLIST(pathname):
+        if os.path.isdir(pathname):
+            app.status(_("Adding dir: %s") % pathname)
+            self.add_dir(pathname)
+            app.restore_default_status()
+        elif VALID_PLAYLIST(pathname):
             try:
                 file = open(pathname)
                 for filename in map(string.strip, file.readlines()):
@@ -965,6 +969,7 @@ class Player:
         self.stopped = 0
         self.paused = 0
         self.time_setup = None
+        self.offset = 0
 
     def is_stopped(self):
         return self.stopped
@@ -1281,7 +1286,7 @@ def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], "rR")
     except:
-        usage = _("Usage: %s [-rR] [ filename | playlist.m3u ] ...\n")
+        usage = _("Usage: %s [-rR] [ file | dir | playlist.m3u ] ...\n")
         sys.stderr.write(usage % sys.argv[0])
         sys.exit(1)
 
@@ -1314,11 +1319,11 @@ def main():
 
 PLAYERS = [
     FrameOffsetPlayer("mpg321 -q -v -k %d %s", ".*\.mp[123]$", 38.28),
-##     ByteOffsetPlayer("mpg321 -q -v -k %d %s", ".*\.mp[123]$"),
     FrameOffsetPlayer("ogg123 -q -v -d oss -k %d %s", ".*\.ogg$"),
-    FrameOffsetPlayer("mpg123 -q -v -k %d %s", ".*\.mp[123]$", 38.28),
     FrameOffsetPlayer("splay -f -k %d %s", ".*\.mp[123]$", 38.28),
+    FrameOffsetPlayer("mpg123 -q -v -k %d %s", ".*\.mp[123]$", 38.28),
     NoOffsetPlayer("madplay -q -v %s", ".*\.mp[123]$"),
+    NoOffsetPlayer("mikmod -p1 -t %s", "(^mod\.|.*\.(mod|xm|fm|s3m|med))$")
     ]
 
 def VALID_SONG(name):

@@ -1,11 +1,8 @@
 high priority
 ------------------------------------------
-- madplay support
+- alternative scrolling method
+- delayed commands
 - framework for displaying alternative metadata
-- automatic *_Player instantiation
-- shuffle/sort marked tracks?
-- seek acceleration based on total_time
-- toggle time done / time left
 - scrollbar / position indicator
 - hide cursor after SUSP & CONT cycle
 - tilde expansion
@@ -22,10 +19,13 @@ low priority
 - delwin when resizing
 - invert playlist markings
 - hierarchical playlists?
+- better madplay support
+- shuffle/sort marked tracks?
+- delete files (Han)
 
 misc thoughts
 ------------------------------------------
-- alsaplayer, xmp, mikmod, others?
+- support alsaplayer, xmp, others?
 - delayed play command (play after current song is finished)
 - reset progress when changing song?
 - restore xterm title (not possible with aterm, rxvt, etc?)
@@ -44,3 +44,6 @@ misc thoughts
 - support slang?
 - icecast/shoutcast support
 - fade in/out mode (a la repeat/random)
+- filtered view (based on glob / regex)
+- Enter and cursor position logical / intuitive?
+- lots of suggestions from Chris Liechti
