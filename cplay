@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.46rc1"
+__version__ = "cplay 1.46"
 
 """
 cplay - A curses front-end for various audio players
@@ -528,7 +528,7 @@ class HelpWindow(ListWindow):
   Up, C-p, k, Down, C-n, j,            t, T  : tag current/regex
   PgUp, K, PgDown, J                   u, U  : untag current/regex
   Home, g, End, G                      
-              : movement               Filelist
+  @           : movement               Filelist
   Tab         : filelist/playlist      --------
   n, p        : next/prev track        BkSpc : parent dir
   z, x        : toggle pause/stop      o, s  : goto, search recursively
@@ -1072,7 +1072,7 @@ def get_tag(pathname):
     tag = os.path.basename(pathname)
     try:
         if artist and title:
-            tag = str(artist) + " - " + str(title)
+            tag = codecs.latin_1_encode(artist)[0] + " - " + codecs.latin_1_encode(title)[0]
         elif artist:
             tag = artist
         elif title:

@@ -1,0 +1,71 @@
+begin
+    remote = ANIMAX
+    button = SKIP_FORWARD_DOWN
+    prog   = irexec
+    repeat = 0
+    config = echo "next" > /var/tmp/cplay_control
+end
+
+begin
+    remote = ANIMAX
+    button = SKIP_BACKWARD_DOWN
+    prog   = irexec
+    repeat = 0
+    config = echo "prev" > /var/tmp/cplay_control
+end
+
+begin
+    remote = ANIMAX
+    button = REWIND_DOWN
+    prog   = irexec
+    repeat = 1
+    config = echo "backward" > /var/tmp/cplay_control
+end
+
+begin
+    remote = ANIMAX
+    button = FORWARD_DOWN
+    prog   = irexec
+    repeat = 1
+    config = echo "forward" > /var/tmp/cplay_control
+end
+
+begin
+    remote = ANIMAX
+    button = PLAY_DOWN
+    prog   = irexec
+    repeat = 0
+    config = echo "play" > /var/tmp/cplay_control
+end
+
+begin
+    remote = ANIMAX
+    button = STOP_DOWN
+    prog   = irexec
+    repeat = 0
+    config = echo "stop" > /var/tmp/cplay_control
+end
+
+begin
+    remote = ANIMAX
+    button = VOLUME_UP_DOWN
+    prog   = irexec
+    repeat = 1
+    config = echo "volup" > /var/tmp/cplay_control
+end
+
+begin
+    remote = ANIMAX
+    button = VOLUME_DOWN_DOWN
+    prog   = irexec
+    repeat = 1
+    config = echo "voldown" > /var/tmp/cplay_control
+end
+
+begin
+    remote = ANIMAX
+    button = POWER_DOWN
+    prog   = irexec
+    repeat = 0
+    config = echo "quit" > /var/tmp/cplay_control
+end

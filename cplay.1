@@ -1,9 +1,9 @@
-.\" Copyright (C) 2000 Martin Michlmayr <tbm@cyrius.com>
+.\" Copyright (C) 2000, 2002 Martin Michlmayr <tbm@cyrius.com>
 .\" This manual is freely distributable under the terms of the GPL.
 .\" It was originally written for Debian GNU/Linux (but may be used
 .\" by others).
 .\"
-.TH CPLAY 1 "December 2001"
+.TH CPLAY 1 "November 2002"
 
 .SH NAME
 .PP
@@ -11,7 +11,7 @@ cplay \- a front-end for various audio players
 
 .SH SYNOPSIS
 .PP
-\fBcplay\fR [-options] [ \fIfile\fP | \fIdir\fP |\fIplaylist.m3u\fP ] ...
+\fBcplay\fR [\-options] [ \fIfile\fP | \fIdir\fP | \fIplaylist\fP ] ...
 
 .SH DESCRIPTION
 .PP
@@ -32,14 +32,12 @@ mpg321, splay, mpg123 or madplay), Ogg Vorbis (through ogg123), and
 various module-formats (through mikmod).
 
 .SH OPTIONS
-.IP \fB-r
+.IP \fB\-r
 Toggles playlist \fIrepeat\fP mode
-.IP \fB-R
+.IP \fB\-R
 Toggles playlist \fIrandom\fP mode
-.IP \fB-v
-Control PCM volume
-.IP \fB-V
-Control MASTER volume (default)
+.IP \fB\-v
+Toggles PCM and MASTER (default) volume control
 
 .SH SEE ALSO
 .PP

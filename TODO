@@ -1,48 +1,80 @@
 TODO
 ------------------------------------------
-2 - alternative scrolling method
-5 - framework for displaying alternative metadata
-2 - hide cursor after SUSP & CONT cycle
-3 - better input support (readline?)
-4 - dynamic help page
-3 - new and more vi-friendly keymap
-4 - Q = quit, q = userfriendly quit (sure? [Y/n])
-4 - fast Esc
-5 - numerical arguments
-5 - don't parse player output too often
-4 - merge id3 patch
-4 - merge cddb patch
-1 - delwin when resizing
-2 - invert playlist markings
-3 - hierarchical playlists?
+3 - enter opens m3u as virtual dir in filelist
+3 - support midi players
+3 - support flac (command line player?)
 3 - better madplay support
-2 - shuffle/sort marked tracks?
-1 - info page?
+4 - sort playlist by (current) title/viewpoint/info?
+3 - bang command execution for % = current file, tagged items (delete?)
+3 - restricted mode (disable bang)
+4 - pls-playlist TITLE support
+3 - programmable delay between songs (useful for synchronized recording)
+4 - bookmarks (b<char> and '<char> because m is already used for move?)
+2 - what happens if we try to bookmark a search results page?
+2 - improve isearch using bookmarks for previous position
+4 - error msg when following broken links?
+4 - don't block on slow commands (eg. listdir / add dir / recursive search)
+3 - better input support (readline?)
+2 - fast Esc (not possible with keypad?)
+2 - hide cursor after SUSP & CONT cycle
+4 - metadata info page
+4 ? chdir(..) should behave like Backspace
+4 - try small screen layout patch
+2 - check against old ogg.and.mp3.info.patch for missing features
+3 - use i to toggle *info window?
+5 - recursive search should save bufptr of prev dir
+4 - revert sorting change -> always sort according to viewpoint
+3 - clean up app.player.is_stopped() mess
+2 - which -> WHICH (upcase global functions?)
+3 - howto select player for streaming http://ip:port urls?
+4 - change status (and title) when playlist viewpoint/mode is changed?
+
 
 misc thoughts
 ------------------------------------------
-- delete files? (avoid filemanager-bloat)
+- use C as a shortcut for untag/clear all?
+- suspend + resize + continue -> should resize
+- rc-file
+- sort search results?
+- jump to current song command?
+- support seeking when stopped
+- magic
+- dynamic help page?
+- toggle header / small screen mode (treshold?)
+- new key for invert tags?
+- randomly play albums (groups / hierarchical playlist)
+- delwin before/after resize?
+- different marks/tags for filelist and playlist
+- : commands
+- shuffle/sort tagged tracks only?
+- hierarchical playlists?
+- dust off id3 patch?
+- dust off cddb patch?
+- filtered point of view (obsoleted by recursive searching?)
+- mark filelist entries already in playlist
+- support cd-players
+- sideways scrolling?
+- alternative scrolling method
+- metadata editor?
+- reread dir => search for current entry
 - support alsaplayer, xmp, others?
-- delayed play command (play after current song is finished)
-- reset progress when changing song?
+- delayed play or mark as next command (play after current is finished)
+- use 'N' to mark as next?
+- reset progress when changing song? (what?)
 - restore xterm title (not possible with aterm, rxvt, etc?)
-- mpg123 gives buggy progress info for some mp3 files
+- mpg123 gives jumpy progress info for vbr files (averaging filter?)
 - should there be another way to start playing the playlist
-  from the beginning than "next track"?
-- / and ? should search
-- n and N should correspond to next and previous
+  from the beginning than "next track"? (and Tab+Enter)
+- new and more vi-friendly keymap
+- numerical arguments?
+- n and N could correspond to next and previous
 - f and b could select next and previous track?
 - a/A = Append mp3/dir
 - i/I = Insert mp3/dir
-- t/T = tag current/regex
-- u/U = untag current/regex
-- Meta-<, Meta-> commands?
-- treat .m3u files as directories?
-- show progress while streaming?
+- Meta-<, Meta-> commands? (avoid meta)
+- show progress-counter while streaming?
 - Python 1.4 compatibility?
 - support slang?
-- icecast/shoutcast support
 - fade in/out mode (a la repeat/random)
-- filtered or narrowed view (based on glob / regex)
-- Enter and cursor position logical / intuitive?
-- lots of suggestions from Chris Liechti
+- crossfade mode (hardly)
+- is Enter and cursor position logical / intuitive? (absolutely)

@@ -1,3 +1,14 @@
+2002-12-16  Ulf Betlehem  <flu@iki.fi>
+
+	*** 1.46 released ***
+	
+	* cplay:
+	- documented @ command
+	- get_tag improvement (Martin Michlmayr)
+
+	* cplay.1:
+	- combined v and V options into one.
+
 2002-12-04  Ulf Betlehem  <flu@iki.fi>
 
 	* cplay (1.46rc1):

@@ -1,31 +1,45 @@
 Description:
-	cplay is a curses front-end for various audio players. It aims
-	to provide a power-user-friendly interface with simple filelist
-	and playlist control. It is written in Python and can use
-	either pyncurses or the standard curses module.
+
+        cplay is a curses front-end for various audio players. It aims
+        to provide a power-user-friendly interface with simple filelist
+        and playlist control. cplay is written in Python and can use
+        either pyncurses or the standard curses module.
 
 Requirements:
-	- cplay			http://www.tf.hut.fi/~flu/cplay/
-	- python 		http://www.python.org/
-	- mpg321    (optional)  http://sourceforge.net/projects/mpg321/
-	- ogg123    (optional)  http://www.vorbis.com/
-	- mpg123    (optional)	http://www.mpg123.org/
-	- splay     (optional)  http://splay.sourceforge.net/
-	- madplay   (optional)  http://www.mars.org/home/rob/proj/mpeg/
-	- mikmod    (optional)  http://www.mikmod.org/
-	- fintl     (optional)	http://www.python.org/sigs/i18n-sig/
-	- pyncurses (optional)	http://pyncurses.sourceforge.net/
+
+        - cplay                 http://www.tf.hut.fi/~flu/cplay/
+        - python                http://www.python.org/
+        - mpg321    (optional)  http://sourceforge.net/projects/mpg321/
+        - ogg123    (optional)  http://www.vorbis.com/
+        - mpg123    (optional)  http://www.mpg123.org/
+        - splay     (optional)  http://splay.sourceforge.net/
+        - madplay   (optional)  http://www.mars.org/home/rob/proj/mpeg/
+        - mikmod    (optional)  http://www.mikmod.org/
+        - fintl     (optional)  http://www.python.org/sigs/i18n-sig/
+        - pyncurses (optional)  http://pyncurses.sourceforge.net/
+        - ID3-py    (optional)  http://id3-py.sourceforge.net/
+        - pyvorbis  (optional)  http://www.duke.edu/~ahc4/pyogg/
 
 Installation:
-	make install
+
+        make install
 
 Usage:
-	cplay [-rRvV] [ file | dir | playlist.m3u ] ...
 
-Documentation:
-	When in doubt, press 'h' for a friendly help page.
+        cplay [-rRv] [ file | dir | playlist ] ...
 
-	If you would like to change the options passed to the actual
-	players just edit cplay and edit the PLAYERS list.
+        When in doubt, press 'h' for a friendly help page.
 
-	For mpeg streaming, mpg123 v0.59r or later is recommended.
+Miscellaneous:
+
+        If you would like to change options passed to the actual
+        players just edit the PLAYERS list in the cplay script.
+
+        A playlist can contain URLs, but the playlist itself will
+        have to be local. For mpeg streaming, splay is recommended.
+
+        It is also possible to pipe a playlist to cplay, as stdin
+        will be reopened on startup unless it is attached to a tty.
+
+        Remote control via /var/tmp/cplay_control; see lircrc.
+
