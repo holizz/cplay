@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.47rc3"
+__version__ = "cplay 1.47rc4"
 
 """
 cplay - A curses front-end for various audio players
@@ -311,12 +311,11 @@ class RootWindow(Window):
         keymap.bind('z', app.toggle_pause, ())
         keymap.bind('x', app.toggle_stop, ())
         keymap.bind('c', self.win_counter.toggle_mode, ())
-        keymap.bind('Q', self.command_quit, (1,))
+        keymap.bind('Q', app.quit, ())
         keymap.bind('q', self.command_quit, ())
         keymap.bind('v', app.toggle_mixer, ())
 
-    def command_quit(self, seriously=0):
-        if app.quit_silently or seriously: app.quit()
+    def command_quit(self):
         app.do_input_hook = self.do_quit
         app.start_input(_("Quit? (y/N)"))
         
@@ -489,7 +488,7 @@ class ListWindow(Window):
             app.stop_input_hook = self.stop_search
             app.start_input(type)
         else:
-            app.input_prompt = type
+            app.input_prompt = "%s: " % type  # todo
             self.do_search(advance = direction)
 
     def stop_search(self):
@@ -624,8 +623,8 @@ class TagListWindow(ListWindow):
     def command_change_viewpoint(self, klass=ListEntry):
         klass.vps.append(klass.vps.pop(0))
         app.status(_("Listing %s") % klass.vps[0][0], 1)
-        self.update()
         app.player.update_status()
+        self.update()
 
     def command_invert_tags(self):
         for i in self.buffer:
@@ -966,8 +965,7 @@ class PlaylistWindow(TagListWindow):
     def add_pls(self, line):
         # todo - support title & length
         m = re.match("File(\d+)=(.*)", line)
-        if not m: return
-        self.append(PlaylistEntry(self.fix_url(m.group(2))))
+        if m: self.append(PlaylistEntry(self.fix_url(m.group(2))))
 
     def add_playlist(self, pathname):
         self.pathname = pathname
@@ -1443,7 +1441,6 @@ class Application:
         self.kludge = 0
         self.win_filelist.listdir()
         self.control = FIFOControl()
-        self.quit_silently = 0
 
     def cleanup(self):
         curses.endwin()
@@ -1621,9 +1618,9 @@ class Application:
 # ------------------------------------------
 def main():
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "qrRv")
+        opts, args = getopt.getopt(sys.argv[1:], "rRv")
     except:
-        usage = _("Usage: %s [-qrRv] [ file | dir | playlist ] ...\n")
+        usage = _("Usage: %s [-rRv] [ file | dir | playlist ] ...\n")
         sys.stderr.write(usage % sys.argv[0])
         sys.exit(1)
 
@@ -1638,13 +1635,12 @@ def main():
     try:
         app.setup()
         for opt, optarg in opts:
-            if opt == "-q": app.quit_silently = 1
             if opt == "-r": app.win_playlist.command_toggle_repeat()
             if opt == "-R": app.win_playlist.command_toggle_random()
             if opt == "-v": app.toggle_mixer()
         if args or playlist:
-            for item in args or playlist:
-                app.win_playlist.add(item)
+            for i in args or playlist:
+                app.win_playlist.add(os.path.abspath(i))
             app.win_tab.change_window()
         app.run()
     except SystemExit:
@@ -1655,7 +1651,6 @@ def main():
         traceback.print_exc()
 
 # ------------------------------------------
-
 PLAYERS = [
     FrameOffsetPlayer("ogg123 -q -v -k %d %s", "\.ogg$"),
     FrameOffsetPlayer("mpg123 -q -v -k %d %s", "\.mp[123]$", 38.28),

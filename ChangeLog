@@ -1,3 +1,10 @@
+2003-04-11  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay(1.47rc4):
+	- removed "quit silently" command-line option (use Q instead)
+	- fixed missing ": " for isearch-prompt
+	- always add absolute paths to playlist (args and stdin)
+
 2003-04-10  Ulf Betlehem  <flu@iki.fi>
 
 	* cplay(1.47rc3):
