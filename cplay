@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "$Id: cplay,v 1.31 tmp $"
+__version__ = "$Id: cplay,v 1.32 2000/07/25 11:20:58 flu Exp $"
 
 """
 cplay - A curses front-end for mpg123 (version >= 0.59o)
@@ -44,9 +44,28 @@ from types import *
 
 # ------------------------------------------
 FPS = 38.28
-RE_SONG = re.compile(".*\.[Mm][Pp][123]$")
-RE_PLAYLIST = re.compile(".*\.[Mm]3[Uu]$")
-XTERM = re.search("rxvt|xterm", os.environ['TERM']) and 1 or 0
+XTERM = re.search("rxvt|xterm", os.environ["TERM"]) and 1 or 0
+
+# ------------------------------------------
+def error(msg):
+    msg and sys.stderr.write(msg)
+    sys.exit(1)
+
+# ------------------------------------------
+def warning(msg):
+    msg and sys.stderr.write(msg)
+
+# ------------------------------------------
+def which(program):
+    for path in string.split(os.environ["PATH"], ":"):
+        if os.path.exists(os.path.join(path, program)):
+            return os.path.join(path, program)
+    else:
+        warning("Could not find %s in your PATH.\n" % program)
+
+# ------------------------------------------
+#def log(msg):
+#    f = open("log", "a"); f.write(msg); f.close()
 
 # ------------------------------------------
 class Stack:
@@ -553,9 +572,9 @@ class FilelistWindow(ListWindow):
             for entry in os.listdir(self.cwd):
                 if os.path.isdir(self.cwd + entry):
                     self.dirs.append("%s/" % entry)
-                elif RE_SONG.match(entry):
+                elif VALID_SONG(entry):
                     self.files.append("%s" % entry)
-                elif RE_PLAYLIST.match(entry):
+                elif VALID_PLAYLIST(entry):
                     self.files.append("%s" % entry)
         except os.error: pass
         self.dirs.sort()
@@ -589,7 +608,7 @@ class FilelistWindow(ListWindow):
         if os.path.isdir(self.cwd + self.current()):
             self.chdir(self.cwd + self.current())
             self.listdir()
-        elif RE_SONG.match(self.current()):
+        elif VALID_SONG(self.current()):
             app.player.play(self.cwd + self.current(), 0)
 
     def command_chparentdir(self):
@@ -620,7 +639,7 @@ class FilelistWindow(ListWindow):
 
     def command_add(self):
         if (os.path.isfile(self.cwd + self.current()) and
-            RE_SONG.match(self.current())):
+            VALID_SONG(self.current())):
             app.win_playlist.append(self.cwd + self.current())
             self.cursor_move(+1)
 
@@ -628,7 +647,7 @@ class FilelistWindow(ListWindow):
         if os.path.isdir(self.cwd + self.current()):
             self.add_dir(self.cwd + self.current())
             self.cursor_move(+1)
-        elif RE_PLAYLIST.match(self.current()):
+        elif VALID_PLAYLIST(self.current()):
             app.win_playlist.append(self.cwd + self.current())
             self.cursor_move(+1)
 
@@ -639,7 +658,7 @@ class FilelistWindow(ListWindow):
                 for entry in os.listdir(dir):
                     entries.append(os.path.join(dir, entry))
             except os.error: return
-            songs = filter(RE_SONG.match, entries)
+            songs = filter(VALID_SONG, entries)
             dirs = filter(os.path.isdir, entries)
             songs.sort()
             for song in songs:
@@ -700,7 +719,7 @@ class PlaylistWindow(ListWindow):
                                         self.random and "[random]" or "        ")
 
     def append(self, pathname):
-        if RE_PLAYLIST.match(pathname):
+        if VALID_PLAYLIST(pathname):
             try:
                 file = open(pathname)
                 for filename in map(string.strip, file.readlines()):
@@ -874,8 +893,8 @@ class PlaylistWindow(ListWindow):
         if not filename: return
         if filename[0] != '/':
             filename = "%s%s" % (app.win_filelist.cwd, filename)
-        if not RE_PLAYLIST.match(filename):
-            filename = "%s%s" % (filename, '.m3u')
+        if not VALID_PLAYLIST(filename):
+            filename = "%s%s" % (filename, ".m3u")
         try:
             file = open(filename, "w")
             for entry in self.buffer:
@@ -886,9 +905,35 @@ class PlaylistWindow(ListWindow):
             app.status("Cannot write playlist!", 1)
 
 # ------------------------------------------
-class Player:
-    regex = re.compile("Frame#\s*(\d+)\s*\[\s*(\d+)")
+class sox_Player:
+    def __init__(self):
+        self.format = re.compile(".*\.(aiff|au|cdr|wav)$", re.I)
+        self.program = which("sox")
+        self.command = "%s -t ossdsp /dev/dsp" % self.program
 
+    def play(self, pathname, frame):
+        argv = string.split(self.command)
+        argv.insert(1, pathname)
+        try: os.execv(argv[0], argv)
+        except: os._exit(1)
+
+# ------------------------------------------
+class mpg123_Player:
+    progress = re.compile("Frame#\s*(\d+)\s*\[\s*(\d+)")
+
+    def __init__(self):
+        self.format = re.compile(".*\.mp[123]$", re.I)
+        self.program = which("mpg123")
+        self.command = "%s -qv -k%%d" % self.program
+
+    def play(self, pathname, frame):
+        argv = string.split(self.command % frame)
+        argv.append(pathname)
+        try: os.execv(argv[0], argv)
+        except: os._exit(1)
+
+# ------------------------------------------
+class Player:
     def __init__(self):
         self.stopped = 1
         self.paused = 0
@@ -934,10 +979,9 @@ class Player:
             os.setpgrp()
             os.dup2(self.pstdout[1], sys.stdout.fileno())
             os.dup2(self.pstderr[1], sys.stderr.fileno())
-            argv = string.split(app.command % frame)
-            argv.append(pathname)
-            try: os.execv(argv[0], argv)
-            except: os._exit(1)
+            for player in PLAYERS:
+                if player.format.match(pathname):
+                    player.play(pathname, frame)
         self.seek_step = 1
         self.seek_time = None
         self.start_time = None
@@ -1093,7 +1137,7 @@ class Application:
 
             # -- player input
             if self.player.pstderr[0] in r:
-                m = Player.regex.search(os.read(self.player.pstderr[0], 256))
+                m = mpg123_Player.progress.search(os.read(self.player.pstderr[0], 256))
                 if m: self.player.set_time(string.atoi(m.group(1)),
                                            string.atoi(m.group(2)))
 
@@ -1146,26 +1190,20 @@ class Application:
         self.quit()
 
 # ------------------------------------------
-def die(reason=None):
-    reason and sys.stderr.write(reason)
-    sys.exit(1)
-
-# ------------------------------------------
 def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], "")
     except:
-        die("Usage: %s [ file.mp3 | playlist.m3u ] ...\n" % sys.argv[0])
+        error("Usage: %s [ file.mp3 | playlist.m3u ] ...\n" % sys.argv[0])
+
+    for player in PLAYERS[:]:
+        if not player.program:
+            PLAYERS.remove(player)
+    if not PLAYERS:
+        error("No supported players found.. Sorry!\n")
 
     global app
     app = Application()
-    player = "mpg123"
-    for path in string.split(os.environ['PATH'], ":"):
-        if os.path.exists(os.path.join(path, player)):
-            app.command = "%s -qv -k%%d" % os.path.join(path, player)
-            break
-    else:
-        die("Error: Cannot find %s in your PATH\n" % player)
 
     playlist = []
     if not sys.stdin.isatty():
@@ -1187,6 +1225,18 @@ def main():
         app.cleanup()
         import traceback
         traceback.print_exc()
+
+# ------------------------------------------
+PLAYERS = [mpg123_Player(), sox_Player()]
+
+def VALID_SONG(name):
+    for player in PLAYERS:
+        if player.format.match(name):
+            return 1
+
+def VALID_PLAYLIST(name):
+    if re.compile(".*\.m3u$", re.I).match(name):
+        return 1
 
 # ------------------------------------------
 if __name__ == "__main__": main()
