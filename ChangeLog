@@ -1,3 +1,30 @@
+2002-10-21  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay (1.46pre6)
+	- new and improved random mode (Radu)
+
+2002-10-20  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay:
+	- refactoring
+	- list mode (l = toggle viewpoints)
+	- q = quit (y/n) and Q = Quit immediately
+	- isearch turnaround change
+	- input cursor position
+	- recursive search duplicates fix
+	- case insensitive regex marking
+	- regex marking matches viewpoint
+	- VALID_SONG regex matches basename
+	- playlist sorting by filename or pathname
+	- don't move empty list of marked entries
+	- SIGTERM -> SIGINT (again)
+	- updated mikmod switches
+
+2002-10-15  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay:
+	- pad input with space for cursor position
+
 2002-10-11  Ulf Betlehem  <flu@iki.fi>
 
 	* cplay (1.46pre5)
