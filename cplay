@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.44pre1"
+__version__ = "cplay 1.44pre2"
 
 """
 cplay - A curses front-end for various audio players
@@ -190,10 +190,10 @@ class HelpWindow(Window):
 
   Global                              Filelist
   ------                              --------
-  Up, C-p, k,                         Space     : add to playlist
-  Down, C-n, j,                       a         : add recursively
-  PgUp, PgDown,                       g         : goto
-  Home, End   : movement              Enter     : chdir or play
+  Up, C-p, k, Down, C-n, j,           Space     : add to playlist
+  PgUp, K, PgDown, J                  a         : add recursively
+  Home, g, End, G                     o         : open path
+              : movement              Enter     : chdir or play
   Tab         : filelist/playlist     Backspace : parent dir
   n, p        : next/prev track       
   z, x        : toggle pause/stop     Playlist
@@ -205,7 +205,7 @@ class HelpWindow(Window):
   1..9, +, -  : volume                m, d  : move/delete marked tracks
   C-l         : refresh screen        r, R  : toggle repeat/Random mode
   h           : help                  s, S  : shuffle/Sort playlist
-  q           : quit                  o     : save playlist (to .m3u file)
+  q           : quit                  w     : write playlist (to .m3u file)
 """)
 
     def __init__(self, parent):
@@ -418,10 +418,10 @@ class ListWindow(Window):
         self.keymap = Keymap()
         self.keymap.bind(['k', curses.KEY_UP, 16], self.cursor_move, (-1,))
         self.keymap.bind(['j', curses.KEY_DOWN, 14], self.cursor_move, (1,))
-        self.keymap.bind(curses.KEY_PPAGE, self.cursor_ppage, ())
-        self.keymap.bind(curses.KEY_NPAGE, self.cursor_npage, ())
-        self.keymap.bind(curses.KEY_HOME, self.cursor_home, ())
-        self.keymap.bind(curses.KEY_END, self.cursor_end, ())
+        self.keymap.bind(['K', curses.KEY_PPAGE], self.cursor_ppage, ())
+        self.keymap.bind(['J', curses.KEY_NPAGE], self.cursor_npage, ())
+        self.keymap.bind(['g', curses.KEY_HOME], self.cursor_home, ())
+        self.keymap.bind(['G', curses.KEY_END], self.cursor_end, ())
         self.keymap.bind(['?', 18], self.start_search,
                          (_("backward-isearch"), -1))
         self.keymap.bind(['/', 19], self.start_search,
@@ -576,7 +576,7 @@ class FilelistWindow(ListWindow):
                          self.command_chparentdir, ())
         self.keymap.bind(' ', self.command_add, ())
         self.keymap.bind('a', self.command_add_recursively, ())
-        self.keymap.bind('g', self.command_goto, ())
+        self.keymap.bind('o', self.command_goto, ())
 
     def listdir_maybe(self, now=0):
         if now < self.mtime_when+2: return
@@ -731,7 +731,7 @@ class PlaylistWindow(ListWindow):
         self.keymap.bind('S', self.command_sort, ())
         self.keymap.bind('r', self.command_toggle_repeat, ())
         self.keymap.bind('R', self.command_toggle_random, ())
-        self.keymap.bind('o', self.command_save_playlist, ())
+        self.keymap.bind('w', self.command_save_playlist, ())
         self.keymap.bind('a', self.command_mark_all, ())
         self.keymap.bind('c', self.command_clear_all, ())
         self.keymap.bind('A', self.command_mark_regexp, ())
@@ -1077,15 +1077,15 @@ class FrameOffsetPlayer(Player):
             self.set_position(head, head+tail, [head, tail])
 
 # ------------------------------------------
-class ByteOffsetPlayer(Player):
-    re_progress = re.compile(
-        "Frame.\s*(\d+) \[\s*(\d*)\], Time.\s*(\d+):(\d+).*\[(\d+):(\d+)")
+## class ByteOffsetPlayer(Player):
+##     re_progress = re.compile(
+##         "Frame.\s*(\d+) \[\s*(\d*)\], Time.\s*(\d+):(\d+).*\[(\d+):(\d+)")
 
-    def parse_fd(self, fd):
-        match = self.re_progress.search(os.read(fd, 256))
-        if match and not self.step:
-            head, tail, m1, s1, m2, s2 = map(string.atoi, match.groups())
-            self.set_position(head, head+tail, [m1*60+s1, m2*60+s2])
+##     def parse_fd(self, fd):
+##         match = self.re_progress.search(os.read(fd, 256))
+##         if match and not self.step:
+##             head, tail, m1, s1, m2, s2 = map(string.atoi, match.groups())
+##             self.set_position(head, head+tail, [m1*60+s1, m2*60+s2])
 
 # ------------------------------------------
 class NoOffsetPlayer(Player):
@@ -1314,7 +1314,8 @@ def main():
 # ------------------------------------------
 
 PLAYERS = [
-    ByteOffsetPlayer("mpg321 -q -v -k %d %s", ".*\.mp[123]$"),
+    FrameOffsetPlayer("mpg321 -q -v -k %d %s", ".*\.mp[123]$", 38.28),
+##     ByteOffsetPlayer("mpg321 -q -v -k %d %s", ".*\.mp[123]$"),
     FrameOffsetPlayer("ogg123 -q -v -d oss -k %d %s", ".*\.ogg$"),
     FrameOffsetPlayer("mpg123 -q -v -k %d %s", ".*\.mp[123]$", 38.28),
     FrameOffsetPlayer("splay -f -k %d %s", ".*\.mp[123]$", 38.28),
