@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.47rc1"
+__version__ = "cplay 1.47rc2"
 
 """
 cplay - A curses front-end for various audio players
@@ -1309,7 +1309,9 @@ class Player:
         app.progress(self.length and (float(self.offset) / self.length))
 
     def update_status(self):
-        if self.is_stopped():
+        if not self.entry:
+            app.set_default_status("")
+        elif self.is_stopped():
             app.set_default_status(_("Stopped: %s") % self.entry.vp())
         elif self.is_paused():
             app.set_default_status(_("Paused: %s") % self.entry.vp())
