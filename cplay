@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.45pre2"
+__version__ = "cplay 1.45pre3"
 
 """
 cplay - A curses front-end for various audio players
@@ -235,7 +235,7 @@ class ProgressWindow(Window):
         if self.value > 0:
             self.move(0, 0)
             x = int(self.value * self.cols)  # 0 to cols-1
-            self.hline(ord('='), x+1)
+            x and self.hline(ord('='), x)
             self.move(0, x)
             self.insstr('|')
         self.touchwin()
@@ -652,7 +652,7 @@ class FilelistWindow(ListWindow):
         if reason == _("cancel") or not self.input_string:
             app.status(_("cancel"), 1)
             return
-        dir = self.input_string
+        dir = os.path.expanduser(self.input_string)
         if dir[0] != '/': dir = "%s%s" % (self.cwd, dir)
         if not os.path.isdir(dir):
             app.status(_("Not a directory!"), 1)

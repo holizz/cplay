@@ -1,3 +1,8 @@
+2002-01-13  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay (1.45pre3):
+	- progressbar cosmetics
+	- tilde expansion (Patrice Neff)
 2001-12-27  Ulf Betlehem  <flu@iki.fi>
 
 	* cplay (1.45pre2):
