@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.45pre4"
+__version__ = "cplay 1.45pre5"
 
 """
 cplay - A curses front-end for various audio players
@@ -76,10 +76,6 @@ for MIXER in ["/dev/sound/mixer", "/dev/mixer"]:
     if os.path.exists(MIXER): break
 
 # ------------------------------------------
-## def log(msg):
-##     f = open("log", "a"); f.write(msg); f.close()
-
-# ------------------------------------------
 def which(program):
     for path in string.split(os.environ["PATH"], ":"):
         if os.path.exists(os.path.join(path, program)):
@@ -143,6 +139,11 @@ class Window:
         self.resize()
         if parent: parent.children.append(self)
 
+    def insstr(self, s):
+        if not s: return
+        self.w.addstr(s[:-1])
+        self.w.hline(ord(s[-1]), 1)  # insch() work-around
+
     def __getattr__(self, name):
         return getattr(self.w, name)
 
@@ -202,13 +203,13 @@ class HelpWindow(Window):
   Left, Right,                         --------
   C-b, C-f    : seek                   Enter : play track
   C-s, C-r, / : isearch                Space : toggle mark
-  t           : toggle counter mode    a, c  : mark/clear all
-  C-g, Esc    : cancel                 A, C  : mark/clear regexp
-  1..9, +, -  : volume control         m, d  : move/delete marked tracks
+  t           : toggle counter mode    a, A  : mark all/regex
+  C-g, Esc    : cancel                 c, C  : clear all/regex
+                                       d, D  : delete marked/current tracks
+  1..9, +, -  : volume control         m, M  : move marked tracks after/before
   v, V        : PCM or MASTER volume   r, R  : toggle repeat/Random mode
   C-l         : refresh screen         s, S  : shuffle/Sort playlist
-  h, q        : help, quit             w     : write playlist (to .m3u file)
-""")
+  h, q        : help, quit             w     : write playlist (to .m3u file)""")
 
     def __init__(self, parent):
         Window.__init__(self, parent)
@@ -217,7 +218,8 @@ class HelpWindow(Window):
         self.keymap.bind('q', self.parent.help, ())
 
     def newwin(self):
-        return curses.newwin(self.parent.rows-2, self.parent.cols, self.parent.ypos+2, self.parent.xpos)
+        return curses.newwin(self.parent.rows-2, self.parent.cols,
+                             self.parent.ypos+2, self.parent.xpos)
 
     def update(self):
         self.move(0, 0)
@@ -374,10 +376,13 @@ class TabWindow(Window):
         child.update()
 
     def update_title(self, refresh = 1):
+        child = self.children[self.active_child]
+        try: child.update_name()
+        except AttributeError: pass
         self.move(0, 0)
         self.clrtoeol()
         self.attron(curses.A_BOLD)
-        self.insstr(str(self.children[self.active_child].name))
+        self.insstr(str(child.name))
         self.attroff(curses.A_BOLD)
         if refresh: self.refresh()
 
@@ -454,7 +459,9 @@ class ListWindow(Window):
                 i = i + 1
                 self.putstr(entry)
                 if self.getyx()[0] == self.rows - 1: break
-            if self.visible: self.refresh()
+            if self.visible:
+                self.refresh()
+                self.parent.update_title()
         self.update_line(curses.A_REVERSE)
 
     def update_line(self, attr = None, refresh = 1):
@@ -493,7 +500,8 @@ class ListWindow(Window):
 
     def putstr(self, entry, *pos):
         s = string.translate(str(entry), Window.translationTable)
-        s = "%s%s" % ((len(s) > self.cols) and (s[:self.cols - 1], ">") or (s, ""))
+        s = "%s%s" % (
+            (len(s) > self.cols) and (s[:self.cols-1], ">") or (s, ""))
         pos and apply(self.move, pos)
         self.insstr(s)
 
@@ -584,6 +592,19 @@ class FilelistWindow(ListWindow):
         self.keymap.bind('a', self.command_add_recursively, ())
         self.keymap.bind('o', self.command_goto, ())
 
+    def update_name(self):
+        pos = "%s-%s/%s" % (self.scrptr,
+                            min(self.scrptr+self.rows, len(self.buffer)),
+                            len(self.buffer))
+        self.name = _("Filelist: ")
+        width = self.cols-len(pos)-2
+        diff = len(self.name) + len(self.cwd) - width
+        if diff > 0:
+            self.name = "%s<%s" % (self.name, self.cwd[diff+1:])
+        else:
+            self.name = "%s%s" % (self.name, self.cwd)
+        self.name = "%-*s  %s" % (width, self.name, pos)
+
     def listdir_maybe(self, now=0):
         if now < self.mtime_when+2: return
         self.mtime_when = now
@@ -595,8 +616,8 @@ class FilelistWindow(ListWindow):
 
     def listdir(self):
         app.status(_("Reading directory..."))
-        self.dirs = []
-        self.files = []
+        dirs = []
+        files = []
         try:
             self.mtime = os.stat(self.cwd)[8]
             self.mtime_when = time.time()
@@ -604,16 +625,16 @@ class FilelistWindow(ListWindow):
                 if entry[0] == ".":
                     continue
                 if os.path.isdir(self.cwd + entry):
-                    self.dirs.append("%s/" % entry)
+                    dirs.append("%s/" % entry)
                 elif VALID_SONG(entry):
-                    self.files.append("%s" % entry)
+                    files.append("%s" % entry)
                 elif VALID_PLAYLIST(entry):
-                    self.files.append("%s" % entry)
+                    files.append("%s" % entry)
         except os.error: pass
-        self.dirs.sort()
-        self.files.sort()
-        self.buffer = self.dirs + self.files
-        self.cwd != "/" and self.buffer.insert(0, "../")
+        self.buffer = [["../"], []][self.cwd == "/"]
+        dirs.sort()
+        files.sort()
+        self.buffer = self.buffer + dirs + files
         if self.oldposition.has_key(self.cwd):
             self.bufptr = self.oldposition[self.cwd]
         else:
@@ -633,10 +654,6 @@ class FilelistWindow(ListWindow):
     def chdir(self, dir):
         if hasattr(self, "cwd"): self.oldposition[self.cwd] = self.bufptr
         self.cwd = self.normpath(dir)
-        self.name = _("Filelist: ")
-        diff = len(self.name) + len(self.cwd) - self.cols
-        if diff > 0: self.name = "%s<%s" % (self.name, self.cwd[diff+1:])
-        else: self.name = "%s%s" % (self.name, self.cwd)
 
     def command_chdir_or_play(self):
         if os.path.isdir(self.cwd + self.current()):
@@ -715,7 +732,9 @@ class PlaylistWindow(ListWindow):
         self.keymap.bind('\n', self.command_play, ())
         self.keymap.bind(' ', self.command_mark, ())
         self.keymap.bind('d', self.command_delete, ())
-        self.keymap.bind('m', self.command_move, ())
+        self.keymap.bind('D', self.command_delete_current, ())
+        self.keymap.bind('m', self.command_move, (1,))
+        self.keymap.bind('M', self.command_move, (0,))
         self.keymap.bind('s', self.command_shuffle, ())
         self.keymap.bind('S', self.command_sort, ())
         self.keymap.bind('r', self.command_toggle_repeat, ())
@@ -726,10 +745,14 @@ class PlaylistWindow(ListWindow):
         self.keymap.bind('A', self.command_mark_regexp, ())
         self.keymap.bind('C', self.command_clear_regexp, ())
 
-    def change_name(self):
-        self.name = _("Playlist %s %s") % (self.repeat and _("[repeat]")
-          or " " * len(_("[repeat]")), self.random and _("[random]")
-          or " " * len(_("[random]")))
+    def update_name(self):
+        pos = "%s-%s/%s" % (self.scrptr,
+                            min(self.scrptr+self.rows, len(self.buffer)),
+                            len(self.buffer))
+        self.name = _("Playlist %s %s") % (
+            self.repeat and _("[repeat]") or " " * len(_("[repeat]")),
+            self.random and _("[random]") or " " * len(_("[random]")))
+        self.name = "%-*s  %s" % (self.cols-len(pos)-2, self.name, pos)
 
     def add_dir(self, dir):
         if os.path.isdir(dir):
@@ -868,7 +891,12 @@ class PlaylistWindow(ListWindow):
         except ValueError: self.bufptr = 0
         self.update(force = 1)
 
-    def command_move(self):
+    def command_delete_current(self):
+        if not self.buffer: return
+        self.buffer.remove(self.current())
+        self.update(force = 1)
+
+    def command_move(self, after):
         if not self.buffer: return
         current_entry = self.current()
         if current_entry.is_marked(): return    # sanity check
@@ -877,7 +905,7 @@ class PlaylistWindow(ListWindow):
             if entry.is_marked():
                 l.append(entry)
                 self.buffer.remove(entry)
-        self.bufptr = self.buffer.index(current_entry)
+        self.bufptr = self.buffer.index(current_entry)+after
         self.buffer[self.bufptr:self.bufptr] = l
         self.update(force = 1)
 
@@ -904,13 +932,11 @@ class PlaylistWindow(ListWindow):
     def command_toggle_repeat(self):
         self.repeat = not self.repeat
         app.status(_("Repeat %s") % (self.repeat and _("on") or _("off")), 1)
-        self.change_name()
         self.parent.update_title()
 
     def command_toggle_random(self):
         self.random = not self.random
         app.status(_("Random %s") % (self.random and _("on") or _("off")), 1)
-        self.change_name()
         self.parent.update_title()
 
     def command_mark_regexp(self):

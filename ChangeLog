@@ -1,3 +1,10 @@
+2002-03-19  Ulf Betlehem  <flu@iki.fi>
+	
+	* cplay (1.45pre5):
+	- emulate insstr() for python1.5
+	- new commands m/M = move after/before
+	- new command D = delete current (Jay Felice)
+	- line numbers
 2002-01-19  Ulf Betlehem  <flu@iki.fi>
 
 	* cplay (1.45pre4):
