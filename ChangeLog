@@ -1,3 +1,13 @@
+2002-10-27  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay (1.46pre8)
+	- modified keymap!
+	- updated help window
+	- filelist tagging support (based on a patch by Jason M. Felice)
+	- improved status message behavior
+	- added retry if resize failed
+	- show cursor in input mode
+
 2002-10-24  Ulf Betlehem  <flu@iki.fi>
 
 	* cplay (1.46pre7)
