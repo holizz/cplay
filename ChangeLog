@@ -1,3 +1,11 @@
+2001-12-27  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay (1.45pre2):
+	- added "--no-tty-control" option for madplay
+	- removed "-d oss" option from ogg123 (Han)
+	- use insstr instead of addstr to work around a classical curses-
+	  problem with writing the rightmost character without scrolling.
+
 2001-12-01  Ulf Betlehem  <flu@iki.fi>
 
 	*** 1.44 released ***

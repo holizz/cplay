@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.44"
+__version__ = "cplay 1.45pre2"
 
 """
 cplay - A curses front-end for various audio players
@@ -170,8 +170,8 @@ class Window:
         self.ypos, self.xpos = self.getbegyx()
         self.rows, self.cols = self.getmaxyx()
         self.keypad(1)
-        self.leaveok(1)
-        self.scrollok(1)
+        self.leaveok(0)
+        self.scrollok(0)
         for child in self.children:
             child.resize()
 
@@ -216,7 +216,7 @@ class HelpWindow(Window):
 
     def update(self):
         self.move(0, 0)
-        self.addstr(self.text)
+        self.insstr(self.text)
         self.touchwin()
         self.refresh()
 
@@ -237,7 +237,7 @@ class ProgressWindow(Window):
             x = int(self.value * self.cols)  # 0 to cols-1
             self.hline(ord('='), x+1)
             self.move(0, x)
-            self.addstr('|')
+            self.insstr('|')
         self.touchwin()
         self.refresh()
 
@@ -260,8 +260,8 @@ class StatusWindow(Window):
         msg = string.translate(self.current_message, Window.translationTable)
         if len(msg) > self.cols: msg = "%s>" % msg[:self.cols-1]
         self.move(0, 0)
-        self.addstr(msg)
         self.clrtoeol()
+        self.insstr(msg)
         self.touchwin()
         self.refresh()
 
@@ -299,7 +299,7 @@ class CounterWindow(Window):
         m, s = divmod(s, 60)
         self.move(0, 0)
         self.attron(curses.A_BOLD)
-        self.addstr("%02dh %02dm %02ds" % (h, m, s))
+        self.insstr("%02dh %02dm %02ds" % (h, m, s))
         self.attroff(curses.A_BOLD)
         self.touchwin()
         self.refresh()
@@ -370,7 +370,7 @@ class TabWindow(Window):
         self.move(0, 0)
         self.clrtoeol()
         self.attron(curses.A_BOLD)
-        self.addstr(str(self.children[self.active_child].name))
+        self.insstr(str(self.children[self.active_child].name))
         self.attroff(curses.A_BOLD)
         if refresh: self.refresh()
 
@@ -440,11 +440,13 @@ class ListWindow(Window):
         if force or self.scrptr != scrptr:
             self.scrptr = scrptr
             self.move(0, 0)
-            for entry in self.buffer[self.scrptr:]:
-                if self.getyx()[0] == self.rows - 1: break
-                if self.getyx()[1] > 0: self.addstr("\n")
-                self.putstr(entry)
             self.clrtobot()
+            i = 0
+            for entry in self.buffer[self.scrptr:]:
+                self.move(i, 0)
+                i = i + 1
+                self.putstr(entry)
+                if self.getyx()[0] == self.rows - 1: break
             if self.visible: self.refresh()
         self.update_line(curses.A_REVERSE)
 
@@ -486,7 +488,7 @@ class ListWindow(Window):
         s = string.translate(str(entry), Window.translationTable)
         s = "%s%s" % ((len(s) > self.cols) and (s[:self.cols - 1], ">") or (s, ""))
         pos and apply(self.move, pos)
-        self.addstr(s)
+        self.insstr(s)
 
     def current(self):
         if self.bufptr >= len(self.buffer): self.bufptr = len(self.buffer) - 1
@@ -1079,17 +1081,6 @@ class FrameOffsetPlayer(Player):
             self.set_position(head, head+tail, [head, tail])
 
 # ------------------------------------------
-## class ByteOffsetPlayer(Player):
-##     re_progress = re.compile(
-##         "Frame.\s*(\d+) \[\s*(\d*)\], Time.\s*(\d+):(\d+).*\[(\d+):(\d+)")
-
-##     def parse_fd(self, fd):
-##         match = self.re_progress.search(os.read(fd, 256))
-##         if match and not self.step:
-##             head, tail, m1, s1, m2, s2 = map(string.atoi, match.groups())
-##             self.set_position(head, head+tail, [m1*60+s1, m2*60+s2])
-
-# ------------------------------------------
 class NoOffsetPlayer(Player):
     re_progress = re.compile(
         "\s*(\d+):(\d+):(\d+)")
@@ -1319,10 +1310,10 @@ def main():
 
 PLAYERS = [
     FrameOffsetPlayer("mpg321 -q -v -k %d %s", ".*\.mp[123]$", 38.28),
-    FrameOffsetPlayer("ogg123 -q -v -d oss -k %d %s", ".*\.ogg$"),
+    FrameOffsetPlayer("ogg123 -q -v -k %d %s", ".*\.ogg$"),
     FrameOffsetPlayer("splay -f -k %d %s", ".*\.mp[123]$", 38.28),
     FrameOffsetPlayer("mpg123 -q -v -k %d %s", ".*\.mp[123]$", 38.28),
-    NoOffsetPlayer("madplay -q -v %s", ".*\.mp[123]$"),
+    NoOffsetPlayer("madplay -q -v --no-tty-control %s", ".*\.mp[123]$"),
     NoOffsetPlayer("mikmod -p1 -t %s", "(^mod\.|.*\.(mod|xm|fm|s3m|med))$")
     ]
 
