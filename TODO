@@ -1,30 +1,27 @@
-high priority
+TODO
 ------------------------------------------
-- alternative scrolling method
-- delayed commands
-- framework for displaying alternative metadata
-- scrollbar / position indicator
-- hide cursor after SUSP & CONT cycle
-- tilde expansion
-- better input support (readline?)
-- dynamic help page
-- new and more vi-friendly keymap
-- Q = quit, q = userfriendly quit (sure? [Y/n])
-- fast Esc
-
-low priority
-------------------------------------------
-- merge id3 patch
-- merge cddb patch
-- delwin when resizing
-- invert playlist markings
-- hierarchical playlists?
-- better madplay support
-- shuffle/sort marked tracks?
-- delete files (Han)
+2 - alternative scrolling method
+5 - framework for displaying alternative metadata
+2 - hide cursor after SUSP & CONT cycle
+3 - better input support (readline?)
+4 - dynamic help page
+3 - new and more vi-friendly keymap
+4 - Q = quit, q = userfriendly quit (sure? [Y/n])
+4 - fast Esc
+5 - numerical arguments
+5 - don't parse player output too often
+4 - merge id3 patch
+4 - merge cddb patch
+1 - delwin when resizing
+2 - invert playlist markings
+3 - hierarchical playlists?
+3 - better madplay support
+2 - shuffle/sort marked tracks?
+1 - info page?
 
 misc thoughts
 ------------------------------------------
+- delete files? (avoid filemanager-bloat)
 - support alsaplayer, xmp, others?
 - delayed play command (play after current song is finished)
 - reset progress when changing song?
@@ -37,6 +34,8 @@ misc thoughts
 - f and b could select next and previous track?
 - a/A = Append mp3/dir
 - i/I = Insert mp3/dir
+- t/T = tag current/regex
+- u/U = untag current/regex
 - Meta-<, Meta-> commands?
 - treat .m3u files as directories?
 - show progress while streaming?
@@ -44,6 +43,6 @@ misc thoughts
 - support slang?
 - icecast/shoutcast support
 - fade in/out mode (a la repeat/random)
-- filtered view (based on glob / regex)
+- filtered or narrowed view (based on glob / regex)
 - Enter and cursor position logical / intuitive?
 - lots of suggestions from Chris Liechti
