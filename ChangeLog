@@ -1,3 +1,16 @@
+2004-02-09  Ulf Betlehem  <flu@iki.fi>
+
+	*** 1.50pre3 ***
+	
+	* cplay:
+	- replaced volup and voldown FIFOControl commands with
+	  one "volume set|cue|toggle N" command
+	- removed inc_volume and dec_volume wrappers
+	- added FIFOControl command "empty" (delete playlist)
+
+	* lircrc:
+	- volup, voldown => volume command
+
 2004-02-07  Ulf Betlehem  <flu@iki.fi>
 
 	*** 1.50pre2 ***

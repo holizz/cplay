@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.50pre2"
+__version__ = "cplay 1.50pre3"
 
 """
 cplay - A curses front-end for various audio players
@@ -290,8 +290,8 @@ class RootWindow(Window):
         keymap.bind([1, '^'], app.seek, (0, 0)) # C-a
         keymap.bind([5, '$'], app.seek, (-1, 0)) # C-e
         keymap.bind(range(48,58), app.key_volume) # 0123456789
-        keymap.bind(['+', '='], app.inc_volume, ())
-        keymap.bind('-', app.dec_volume, ())
+        keymap.bind(['+', '='], app.mixer, ("cue", 1))
+        keymap.bind('-', app.mixer, ("cue", -1))
         keymap.bind('n', app.next_song, ())
         keymap.bind('p', app.prev_song, ())
         keymap.bind('z', app.toggle_pause, ())
@@ -1340,26 +1340,31 @@ class FIFOControl:
     def __init__(self):
         try: self.fd = open(CONTROL_FIFO, "rb+", 0)
         except: self.fd = None
-        self.commands = {"pause" : [app.toggle_pause, []],
-                         "next" : [app.next_song, []],
-                         "prev" : [app.prev_song, []],
-                         "forward" : [app.seek, [1, 1]],
-                         "backward" : [app.seek, [-1, 1]],
-                         "play" : [app.toggle_stop, []],
-                         "stop" : [app.toggle_stop, []],
-                         "volup" : [app.inc_volume, []],
-                         "voldown" : [app.dec_volume, []],
-                         "macro" : [app.run_macro],
-                         "add" : [app.win_playlist.add],
-                         "quit" : [app.quit, []]}
+        self.commands = {
+            "pause" : [app.toggle_pause, []],
+            "next" : [app.next_song, []],
+            "prev" : [app.prev_song, []],
+            "forward" : [app.seek, [1, 1]],
+            "backward" : [app.seek, [-1, 1]],
+            "play" : [app.toggle_stop, []],
+            "stop" : [app.toggle_stop, []],
+            "volume" : [self.volume],
+            "macro" : [app.run_macro],
+            "add" : [app.win_playlist.add],
+            "empty" : [app.win_playlist.command_delete_all, []],
+            "quit" : [app.quit, []]
+        }
 
     def handle_command(self):
         argv = self.fd.readline().strip().split(" ", 1)
         if len(argv) < 2: argv.append("")
         if argv[0] in self.commands.keys():
-            l = self.commands[argv[0]][:]
-            if len(l) == 1: l.append([argv[1]])
-            apply(*l)
+            f = self.commands[argv[0]]
+            apply(*f + (len(f)==1 and [[argv[1]]] or []))
+
+    def volume(self, s):
+        argv = s.split()
+        app.mixer(argv[0], int(argv[1]))
 
 # ------------------------------------------
 class Application:
@@ -1503,12 +1508,6 @@ class Application:
         if not self.player.stopped: self.player.stop()
         else: self.play(self.player.entry, self.player.offset)
 
-    def inc_volume(self):
-        self.mixer("cue", 1)
-
-    def dec_volume(self):
-        self.mixer("cue", -1)
-
     def key_volume(self, ch):
         self.mixer("set", (ch & 0x0f)*10)
 
@@ -1531,9 +1530,9 @@ class Application:
             self.channels = self.channels or \
                 [['MASTER', oss.SOUND_MIXER_VOLUME],
                  ['PCM', oss.SOUND_MIXER_PCM]]
-        if cmd is "toggle": self.channels.insert(0, self.channels.pop())
+        if cmd == "toggle": self.channels.insert(0, self.channels.pop())
         name, channel = self.channels[0]
-        if cmd is "cue": arg = min(100, max(0, get(channel)[0] + arg))
+        if cmd == "cue": arg = min(100, max(0, get(channel)[0] + arg))
         if cmd in ["set", "cue"]: set(channel, (arg, arg))
         app.status(_("%s volume %s%%") % (name, get(channel)[0]), 1)
         mixer.close()
