@@ -1,5 +1,10 @@
 2002-08-28  Ulf Betlehem  <flu@iki.fi>
 
+	* cplay (1.46pre4)
+	- bugfix
+
+2002-08-28  Ulf Betlehem  <flu@iki.fi>
+
 	* cplay (1.46pre3)
 	- LIRC support via control FIFO (Pugo)
 

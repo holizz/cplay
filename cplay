@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.46pre3"
+__version__ = "cplay 1.46pre4"
 
 """
 cplay - A curses front-end for various audio players
@@ -1247,8 +1247,6 @@ class Application:
         tty and tty.tcsetattr(sys.stdin.fileno(), tty.TCSADRAIN, self.tcattr)
 
     def run(self):
-        R = [sys.stdin, self.player.stdout_r, self.player.stderr_r]
-        self.control.fd and R.append(self.control.fd)
         while 1:
             now = time.time()
             timeout = self.timeout.check(now)
@@ -1259,6 +1257,8 @@ class Application:
                     pathname = self.win_playlist.next_song()
                     if pathname: self.play(pathname)
                     else: self.player.stopped = 1 # end of playlist hack
+            R = [sys.stdin, self.player.stdout_r, self.player.stderr_r]
+            self.control.fd and R.append(self.control.fd)
             try: r, w, e = select.select(R, [], [], timeout)
             except select.error: continue
             ## user input
