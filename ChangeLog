@@ -1,3 +1,27 @@
+2003-01-30  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay(1.47pre2):
+	- command line option to quit silently without confirmation
+	- isearch speedup (suggested by Eric Max Francis)
+	- viewpoint speedup
+
+2003-01-25  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay(1.47pre1):
+	- added os.path.exists check to get_tag()
+
+2002-12-16  Ulf Betlehem  <flu@iki.fi>
+
+	* lircrc:
+	- new file (Pugo)
+
+	* cplay:
+	- documented @ command
+	- get_tag improvement (Martin Michlmayr)
+
+	* cplay.1:
+	- combined v and V options into one.
+
 2002-12-16  Ulf Betlehem  <flu@iki.fi>
 
 	*** 1.46 released ***

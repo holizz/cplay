@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.46"
+__version__ = "cplay 1.47pre2"
 
 """
 cplay - A curses front-end for various audio players
@@ -312,11 +312,12 @@ class RootWindow(Window):
         keymap.bind('z', app.toggle_pause, ())
         keymap.bind('x', app.toggle_stop, ())
         keymap.bind('c', self.win_counter.toggle_mode, ())
-        keymap.bind('Q', app.quit, ())
+        keymap.bind('Q', self.command_quit, (1,))
         keymap.bind('q', self.command_quit, ())
         keymap.bind('v', app.toggle_mixer, ())
 
-    def command_quit(self):
+    def command_quit(self, seriously=0):
+        if app.quit_silently or seriously: app.quit()
         app.do_input_hook = None
         app.stop_input_hook = self.stop_quit
         app.start_input(_("Quit? (y/N)"))
@@ -483,6 +484,7 @@ class ListWindow(Window):
 
     def start_search(self, type, direction):
         self.search_direction = direction
+        self.not_found = 0
         if not app.input_mode:
             app.do_input_hook = self.do_search
             app.stop_input_hook = self.stop_search
@@ -503,14 +505,18 @@ class ListWindow(Window):
         while 1:
             if not 0 <= index < len(self.buffer):
                 app.status(_("Not found: %s ") % app.input_string)
+                self.not_found = 1
                 break
-            line = str(self.buffer[index])
-            if string.find(string.lower(line),
-                           string.lower(app.input_string)) != -1:
+            line = string.lower(str(self.buffer[index]))
+            if string.find(line, string.lower(app.input_string)) != -1:
                 app.status("%s: %s " % (app.input_prompt, app.input_string))
                 self.update_line(refresh = 0)
                 self.bufptr = index
                 self.update(force = 0)
+                self.not_found = 0
+                break
+            if self.not_found:
+                app.status(_("Not found: %s ") % app.input_string)
                 break
             index = index + self.search_direction
 
@@ -545,9 +551,10 @@ class HelpWindow(ListWindow):
 
 # ------------------------------------------
 class ListEntry:
-    def __init__(self, pathname):
+    def __init__(self, pathname, dir=0):
         self.filename = os.path.basename(pathname)
         self.pathname = pathname
+        self.slash = dir and "/" or ""
         self.tagged = 0
         self.active = 0
 
@@ -565,8 +572,7 @@ class ListEntry:
 
     def __str__(self):
         mark = self.is_tagged() and "#" or " "
-        slash = os.path.isdir(self.pathname) and "/" or ""
-        return "%s %s%s" % (mark, self.vps[0][1](self), slash)
+        return "%s %s%s" % (mark, self.vps[0][1](self), self.slash)
 
     def vp_filename(self):
         return self.filename or self.pathname  # todo
@@ -688,9 +694,9 @@ class FilelistWindow(TagListWindow):
         for filename in os.listdir(dir):
             pathname = os.path.join(dir, filename)
             if re_tmp.search(filename):
-                if os.path.isdir(pathname) or \
-                VALID_PLAYLIST(filename) or \
-                VALID_SONG(filename):
+                if os.path.isdir(pathname):
+                    results.append(ListEntry(pathname, 1))
+                elif VALID_PLAYLIST(filename) or VALID_SONG(filename):
                     results.append(ListEntry(pathname))
             elif os.path.isdir(pathname):
                 self.search_recursively(re_tmp, pathname, results)
@@ -725,8 +731,8 @@ class FilelistWindow(TagListWindow):
         except os.error: pass
         dots = ListEntry(os.path.join(self.cwd, ".."))
         self.buffer = [[dots], []][self.cwd == "/"]
-        for i in dirs + files:
-            self.buffer.append(ListEntry(i))
+        for i in dirs: self.buffer.append(ListEntry(i, 1))
+        for i in files: self.buffer.append(ListEntry(i))
         if prevdir:
             for self.bufptr in range(len(self.buffer)):
                 if self.buffer[self.bufptr].filename == prevdir: break
@@ -1047,7 +1053,7 @@ class PlaylistWindow(TagListWindow):
 
 # ------------------------------------------
 def get_tag(pathname):
-    if re.compile("^http://").match(pathname):
+    if re.compile("^http://").match(pathname) or not os.path.exists(pathname):
         return pathname
     tags = {}
     # FIXME: use magic instead of file extensions to identify OGGs and MP3s
@@ -1326,6 +1332,7 @@ class Application:
         self.kludge = 0
         self.win_filelist.listdir()
         self.control = FIFOControl()
+        self.quit_silently = 0
 
     def cleanup(self):
         curses.endwin()
@@ -1490,9 +1497,9 @@ class Application:
 # ------------------------------------------
 def main():
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "rRv")
+        opts, args = getopt.getopt(sys.argv[1:], "qrRv")
     except:
-        usage = _("Usage: %s [-rRv] [ file | dir | playlist ] ...\n")
+        usage = _("Usage: %s [-qrRv] [ file | dir | playlist ] ...\n")
         sys.stderr.write(usage % sys.argv[0])
         sys.exit(1)
 
@@ -1507,6 +1514,7 @@ def main():
     try:
         app.setup()
         for opt, optarg in opts:
+            if opt == "-q": app.quit_silently = 1
             if opt == "-r": app.win_playlist.command_toggle_repeat()
             if opt == "-R": app.win_playlist.command_toggle_random()
             if opt == "-v": app.toggle_mixer()
