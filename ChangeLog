@@ -1,3 +1,8 @@
+2003-04-10  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay(1.47rc3):
+	- uses glob.glob() instead of fnmatch.filter()
+
 2003-04-08  Ulf Betlehem  <flu@iki.fi>
 
 	* cplay(1.47rc2):

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.47rc2"
+__version__ = "cplay 1.47rc3"
 
 """
 cplay - A curses front-end for various audio players
@@ -708,20 +708,18 @@ class FilelistWindow(TagListWindow):
         return self.complete_generic(line, quote=1)
 
     def complete_generic(self, line, quote=0):
-        import fnmatch
+        import glob
         if quote:
             s = re.sub('.*[^\\\\][ \'"()\[\]{}$`]', '', line)
             s, part = re.sub('\\\\', '', s), line[:len(line)-len(s)]
         else:
             s, part = line, ""
-        s = os.path.expanduser(s)
-        head, tail = os.path.split(s)
-        results = fnmatch.filter(os.listdir(head or "."), tail+"*")
+        results = glob.glob(os.path.expanduser(s)+"*")
         if len(results) == 0:
             return line
         if len(results) == 1:
-            s = os.path.join(head, results[0])
-            s = s + (os.path.isdir(s) and "/" or "")
+            lm = results[0]
+            lm = lm + (os.path.isdir(lm) and "/" or "")
         else:
             lm = results[0]
             for result in results:
@@ -729,9 +727,8 @@ class FilelistWindow(TagListWindow):
                    if result[i] != lm[i]:
                         lm = lm[:i]
                         break
-            s = os.path.join(head, lm)
-        if quote: s = re.sub('([ \'"()\[\]{}$`])', '\\\\\\1', s)
-        return part + s
+        if quote: lm = re.sub('([ \'"()\[\]{}$`])', '\\\\\\1', lm)
+        return part + lm
 
     def command_get_bookmark(self):
         app.do_input_hook = self.do_get_bookmark
