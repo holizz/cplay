@@ -1,3 +1,29 @@
+2003-11-02  Ulf Betlehem  <flu@iki.fi>
+
+	*** 1.49pre3 ***
+
+	* cplay.list:
+	- ESP Package Manager support (http://www.easysw.com/epm/)
+
+	* cplay:
+	- removed excessive update() from get_bookmark()
+	- rewritten delete and move commands for speed
+
+2003-11-01  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay:
+	- move active status support from ListEntry to PlaylistEntry
+
+2003-10-04  Ulf Betlehem  <flu@iki.fi>
+
+	* cplayrc:
+	- removed execute permissions
+
+2003-10-01  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay:
+	- possible bugfix for increasing CPU usage
+
 2003-10-01  Ulf Betlehem  <flu@iki.fi>
 
 	*** 1.49pre2 ***

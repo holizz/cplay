@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.49pre2"
+__version__ = "cplay 1.49pre3"
 
 """
 cplay - A curses front-end for various audio players
@@ -561,19 +561,12 @@ class ListEntry:
         self.pathname = pathname
         self.slash = dir and "/" or ""
         self.tagged = 0
-        self.active = 0
 
     def set_tagged(self, value):
         self.tagged = value
 
     def is_tagged(self):
         return self.tagged == 1
-
-    def set_active(self, value):
-        self.active = value
-
-    def is_active(self):
-        return self.active == 1
 
     def __str__(self):
         mark = self.is_tagged() and "#" or " "
@@ -596,6 +589,13 @@ class PlaylistEntry(ListEntry):
     def __init__(self, pathname):
         ListEntry.__init__(self, pathname)
         self.metadata = None
+        self.active = 0
+
+    def set_active(self, value):
+        self.active = value
+
+    def is_active(self):
+        return self.active == 1
 
     def vp_metadata(self):
         return self.metadata or self.read_metadata()
@@ -658,6 +658,9 @@ class TagListWindow(ListWindow):
 
     def get_tagged(self):
         return filter(lambda x: x.is_tagged(), self.buffer)
+
+    def not_tagged(self, l):
+        return filter(lambda x: not x.is_tagged(), l)
 
 # ------------------------------------------
 class FilelistWindow(TagListWindow):
@@ -740,8 +743,6 @@ class FilelistWindow(TagListWindow):
             dir, pos = bookmark
             self.chdir(dir)
             self.listdir()
-            self.update()
-            # todo - goto pos in listdir?
             self.bufptr = pos
             self.update()
             app.status(_("ok"), 1)
@@ -896,7 +897,7 @@ class PlaylistWindow(TagListWindow):
         self.random = 0
         self.random_prev = []
         self.random_next = []
-        self.random_unplayed = []
+        self.random_left = []
         self.stop = 0
         self.keymap.bind(['\n', curses.KEY_ENTER],
                          self.command_play, ())
@@ -931,17 +932,7 @@ class PlaylistWindow(TagListWindow):
 
     def append(self, item):
         self.buffer.append(item)
-        self.random_unplayed.append(item)
-
-    def remove(self, item):
-        self.buffer.remove(item)
-        if self.random:
-            try: self.random_prev.remove(item)
-            except ValueError: pass
-            try: self.random_next.remove(item)
-            except ValueError: pass
-            try: self.random_unplayed.remove(item)
-            except ValueError: pass
+        if self.random: self.random_left.append(item)
 
     def add_dir(self, dir):
         filenames = os.listdir(dir)
@@ -1014,13 +1005,13 @@ class PlaylistWindow(TagListWindow):
         if self.random:
             if direction > 0:
                 if self.random_next: new = self.random_next.pop()
-                elif self.random_unplayed: pass
-                elif self.repeat: self.random_unplayed = self.buffer[:]
+                elif self.random_left: pass
+                elif self.repeat: self.random_left = self.buffer[:]
                 else: return
                 if not new:
                     import random
-                    new = random.choice(self.random_unplayed)
-                    self.random_unplayed.remove(new)
+                    new = random.choice(self.random_left)
+                    self.random_left.remove(new)
                 try: self.random_prev.remove(new)
                 except ValueError: pass
                 self.random_prev.append(new)
@@ -1062,31 +1053,33 @@ class PlaylistWindow(TagListWindow):
 
     def command_delete(self):
         if not self.buffer: return
-        current_entry = self.current()
-        l = self.get_tagged()
-        if not l:
-            self.remove(current_entry)
-        else:
-            map(self.remove, l)
+        current_entry, n = self.current(), len(self.buffer)
+        self.buffer = self.not_tagged(self.buffer)
+        if n > len(self.buffer):
             try: self.bufptr = self.buffer.index(current_entry)
             except ValueError: pass
+        else:
+            current_entry.set_tagged(1)
+            del self.buffer[self.bufptr]
+        if self.random:
+            self.random_prev = self.not_tagged(self.random_prev)
+            self.random_next = self.not_tagged(self.random_next)
+            self.random_left = self.not_tagged(self.random_left)
         self.update()
 
     def command_delete_all(self):
         self.buffer = []
         self.random_prev = []
         self.random_next = []
-        self.random_unplayed = []
+        self.random_left = []
         app.status(_("Deleted playlist"), 1)
         self.update()
 
     def command_move(self, after):
         if not self.buffer: return
-        current_entry = self.current()
-        if current_entry.is_tagged(): return  # sanity check
-        l = self.get_tagged()
-        if not l: return
-        map(self.remove, l)
+        current_entry, l = self.current(), self.get_tagged()
+        if not l or current_entry.is_tagged(): return
+        self.buffer = self.not_tagged(self.buffer)
         self.bufptr = self.buffer.index(current_entry)+after
         self.buffer[self.bufptr:self.bufptr] = l
         self.update()
@@ -1119,7 +1112,7 @@ class PlaylistWindow(TagListWindow):
         self.toggle("random", _("Random: %s"))
         self.random_prev = []
         self.random_next = []
-        self.random_unplayed = self.buffer[:]
+        self.random_left = self.buffer[:]
 
     def command_toggle_stop(self):
         self.toggle("stop", _("Stop playlist: %s"))
