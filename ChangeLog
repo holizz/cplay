@@ -1,3 +1,18 @@
+2003-04-13  Ulf Betlehem  <flu@iki.fi>
+
+	*** 1.47 released ***
+
+	* README:
+	- mp3info and ogginfo modules are both required
+
+	* TODO: *** empty log message ***
+
+	* cplay.1:
+	- mention help window
+	- shell command and positional parameters
+	- document control_fifo in FILES section
+	- BUGS section
+
 2003-04-11  Ulf Betlehem  <flu@iki.fi>
 
 	* cplay(1.47rc4):

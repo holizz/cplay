@@ -27,7 +27,12 @@ specify an audio file,
 automatically adds it to the playlist which can be accessed
 by pressing the tabulator key.
 .PP
-Currently, the folloging audio formats are supported: MP3 (through
+Use 'h' to display the help window.
+.PP
+Shell command-lines are executed with tagged or current entries
+as positional parameters, which means that "$@" might be useful.
+.PP
+Currently, the following audio formats are supported: MP3 (through
 mpg321, splay, mpg123 or madplay), Ogg Vorbis (through ogg123), and
 various module-formats (through mikmod).
 
@@ -48,7 +53,17 @@ Toggles PCM and MASTER (default) volume control
 .BR madplay (1),
 .BR mikmod (1)
 
+.SH FILES
+.PP
+.I /var/tmp/cplay_control 
+- The remote control fifo.
+
 .SH AUTHOR
 .PP
 Ulf Betlehem <flu@iki.fi>
+
+.SH BUGS
+.PP
+In order for either mp3info (ID3) or ogginfo to work,
+both corresponding python modules have to be installed.
 

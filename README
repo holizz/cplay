@@ -32,6 +32,10 @@ Usage:
 
 Miscellaneous:
 
+        In order for either mp3info (ID3) or ogginfo to work,
+        both corresponding python modules have to be installed.
+        This will probably change someday.
+
         If you would like to change options passed to the actual
         players just edit the PLAYERS list in the cplay script.
 
