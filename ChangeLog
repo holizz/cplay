@@ -1,3 +1,9 @@
+2003-04-08  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay(1.47rc1):
+	- status and title now use viewpoints (l)
+	- hide cursor after shell command
+	- help window updates
 2003-04-07  Ulf Betlehem  <flu@iki.fi>
 
 	* cplay(1.47pre5):

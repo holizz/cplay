@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.47pre5"
+__version__ = "cplay 1.47rc1"
 
 """
 cplay - A curses front-end for various audio players
@@ -48,7 +48,7 @@ _locale_domain = "cplay"
 _locale_dir = "/usr/local/share/locale"
 
 try:
-    import gettext # python 2.0
+    import gettext  # python 2.0
     gettext.install(_locale_domain, _locale_dir)
 except ImportError:
     try:
@@ -63,7 +63,6 @@ except:
 
 # ------------------------------------------
 XTERM = re.search("rxvt|xterm", os.environ["TERM"])
-RETRY = 2.0
 
 MIXER_IOCTL = [["MASTER", 0x80044d00, 0xc0044d00],
                ["PCM",    0x80044d04, 0xc0044d04]]
@@ -133,7 +132,6 @@ class Keymap:
 
 # ------------------------------------------
 class Window:
-
     string.punctuation = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'  # 1.5 kludge
     chars = string.letters+string.digits+string.punctuation+string.whitespace
 
@@ -160,7 +158,7 @@ class Window:
 
     def getmaxyx(self):
         y, x = self.w.getmaxyx()
-        try: curses.version # tested with 1.2 and 1.6
+        try: curses.version  # tested with 1.2 and 1.6
         except AttributeError:
             # pyncurses - emulate traditional (silly) behavior
             y, x = y+1, x+1
@@ -337,7 +335,7 @@ class TabWindow(Window):
         self.win_help     = self.add(HelpWindow)
 
         keymap = Keymap()
-        keymap.bind('\t', self.change_window, ()) # Tab
+        keymap.bind('\t', self.change_window, ()) # tab
         keymap.bind('h', self.help, ())
         app.keymapstack.push(keymap)
         app.keymapstack.push(self.children[self.active_child].keymap)
@@ -523,7 +521,6 @@ class ListWindow(Window):
 
 # ------------------------------------------
 class HelpWindow(ListWindow):
-
     def __init__(self, parent):
         ListWindow.__init__(self, parent)
         self.name = _("Help")
@@ -532,16 +529,16 @@ class HelpWindow(ListWindow):
 
   Global                               Space : tag/untag current
   ------                               t, T  : tag current/regex
-  Up/C-p/k, Down/C-n/j,                u, U  : untag current/regex
-  PgUp/K, PgDn/J, Home/g, End/G        i     : invert tags
-              : movement
-  Enter       : chdir or play          Filelist
-  Tab         : filelist/playlist      --------
-  n, p        : next/prev track        BkSpc : parent dir
-  z, x        : toggle pause/stop      o, s  : goto, search recursively
+  Up, Down, k, j, C-p, C-n,            u, U  : untag current/regex
+  PgUp, PgDn, K, J,                    i     : invert tags
+  Home, End, g, G : movement
+  Enter           : chdir or play      Filelist
+  Tab             : filelist/playlist  --------
+  n, p            : next/prev track    BkSpc : parent dir
+  z, x            : toggle pause/stop  o, s  : goto, search recursively
   Left, Right,                         a     : add (tagged) to playlist
-  C-b, C-f    : seek backward/forward
-  c           : toggle counter mode    Playlist
+  C-f, C-b    : seek forward/backward
+  c           : counter mode           Playlist
   C-s, C-r, / : isearch                --------
   C-g, Esc    : cancel                 d, D  : delete (tagged) tracks/playlist
   1..9, +, -  : volume control         m, M  : move tagged tracks after/before
@@ -551,11 +548,10 @@ class HelpWindow(ListWindow):
 
 
 
-  Undocumented
-  ------------
+  Goodies
+  -------
   b, '   : set/get filelist bookmark
   X      : stop playlist after each track
-  <, >   : scroll horizontally (not implemented)
   C-a, ^ : seek to beginning of current track (restart)
   C-e, $ : seek to end of current track (useless?)
   !      : shell command ($@ = tagged or current)
@@ -590,7 +586,7 @@ class ListEntry:
         return self.vps[0][1](self)
 
     def vp_filename(self):
-        return self.filename or self.vp_pathname()  # todo
+        return self.filename or self.pathname
 
     def vp_pathname(self):
         return self.pathname
@@ -629,6 +625,7 @@ class TagListWindow(ListWindow):
         klass.vps.append(klass.vps.pop(0))
         app.status(_("Listing %s") % klass.vps[0][0], 1)
         self.update()
+        app.player.update_status()
 
     def command_invert_tags(self):
         for i in self.buffer:
@@ -705,6 +702,7 @@ class FilelistWindow(TagListWindow):
         sys.stdin.readline()
         app.win_root.update()
         app.restore_default_status()
+        app.cursor(0)
 
     def complete_shell(self, line):
         return self.complete_generic(line, quote=1)
@@ -861,7 +859,7 @@ class FilelistWindow(TagListWindow):
             self.chdir(self.current().pathname)
             self.listdir()
         elif VALID_SONG(self.current().filename):
-            app.play(self.current().pathname)
+            app.play(self.current())
 
     def command_chparentdir(self):
         dir = os.path.basename(self.cwd)
@@ -895,7 +893,6 @@ class FilelistWindow(TagListWindow):
 
 # ------------------------------------------
 class PlaylistWindow(TagListWindow):
-
     def __init__(self, parent):
         TagListWindow.__init__(self, parent)
         self.pathname = None
@@ -917,10 +914,6 @@ class PlaylistWindow(TagListWindow):
         self.keymap.bind('X', self.command_toggle_stop, ())
         self.keymap.bind('w', self.command_save_playlist, ())
         self.keymap.bind('@', self.command_jump_to_active, ())
-        self.keymap.bind('f', self.command_filter, ())
-
-    def command_filter(self):
-        None
 
     def command_change_viewpoint(self, klass=PlaylistEntry):
         if not globals().get("ID3"):
@@ -974,7 +967,7 @@ class PlaylistWindow(TagListWindow):
             self.append(PlaylistEntry(os.path.join(dirname, line)))
 
     def add_pls(self, line):
-        # todo: support title & length
+        # todo - support title & length
         m = re.match("File(\d+)=(.*)", line)
         if not m: return
         self.append(PlaylistEntry(self.fix_url(m.group(2))))
@@ -1011,13 +1004,12 @@ class PlaylistWindow(TagListWindow):
         apply(ListWindow.putstr, (self, entry) + pos)
         if entry.is_active(): self.attroff(curses.A_BOLD)
 
+    # todo - remove next and prev song methods?
     def next_song(self):
-        entry = self.change_active_entry(1)
-        return entry and entry.pathname
+        return self.change_active_entry(1)
 
     def prev_song(self):
-        entry = self.change_active_entry(-1)
-        return entry and entry.pathname
+        return self.change_active_entry(-1)
 
     def change_active_entry(self, direction):
         if not self.buffer: return
@@ -1070,7 +1062,7 @@ class PlaylistWindow(TagListWindow):
         entry = self.current()
         entry.set_active(1)
         self.update()
-        app.play(entry.pathname)
+        app.play(entry)
 
     def command_delete(self):
         if not self.buffer: return
@@ -1095,7 +1087,7 @@ class PlaylistWindow(TagListWindow):
     def command_move(self, after):
         if not self.buffer: return
         current_entry = self.current()
-        if current_entry.is_tagged(): return    # sanity check
+        if current_entry.is_tagged(): return  # sanity check
         l = self.get_tagged()
         if not l: return
         map(self.remove, l)
@@ -1205,8 +1197,7 @@ class Player:
         self.fps = fps
         self.stdout_r, self.stdout_w = os.pipe()
         self.stderr_r, self.stderr_w = os.pipe()
-        self.pathname = None
-        self.filename = None
+        self.entry = None
         self.stopped = 0
         self.paused = 0
         self.time_setup = None
@@ -1219,13 +1210,13 @@ class Player:
     def is_paused(self):
         return self.paused
 
-    def setup(self, pathname, offset):
+    def setup(self, entry, offset):
         self.argv = string.split(self.commandline)
         self.argv[0] = which(self.argv[0])
         for i in range(len(self.argv)):
-            if self.argv[i] == "%s": self.argv[i] = str(pathname)
+            if self.argv[i] == "%s": self.argv[i] = entry.pathname
             if self.argv[i] == "%d": self.argv[i] = str(offset*self.fps)
-        self.pathname = pathname
+        self.entry = entry
         if offset == 0:
             app.progress(0)
             self.offset = 0
@@ -1235,9 +1226,6 @@ class Player:
         return self.argv[0]
 
     def play(self):
-        # todo - use listitems?
-        self.filename = os.path.basename(self.pathname) or self.pathname
-        app.set_default_status(_("Playing: %s") % self.filename)
         self.pid = os.fork()
         if self.pid == 0:
             os.dup2(self.stdout_w, sys.stdout.fileno())
@@ -1248,18 +1236,19 @@ class Player:
         self.stopped = 0
         self.paused = 0
         self.step = 0
+        self.update_status()
 
     def pause(self, quiet=0):
         self.paused = 1
         try: os.kill(-self.pid, signal.SIGSTOP)
         except os.error: pass
-        quiet or app.set_default_status(_("Paused: %s") % self.filename)
+        quiet or self.update_status()
 
     def unpause(self, quiet=0):
         self.paused = 0
         try: os.kill(-self.pid, signal.SIGCONT)
         except os.error: pass
-        quiet or app.set_default_status(_("Playing: %s") % self.filename)
+        quiet or self.update_status()
 
     def stop(self, quiet=0):
         self.stopped = 1
@@ -1270,7 +1259,7 @@ class Player:
                 except os.error: pass
                 os.waitpid(self.pid, os.WNOHANG)
         except Exception: pass
-        quiet or app.set_default_status(_("Stopped: %s") % self.filename)
+        quiet or self.update_status()
 
     def parse_progress(self):
         self.parse_buf()
@@ -1291,7 +1280,7 @@ class Player:
         try: os.waitpid(self.pid, os.WNOHANG)
         except:
             # something broken? try again
-            if self.time_setup and (time.time() - self.time_setup) < RETRY:
+            if self.time_setup and (time.time() - self.time_setup) < 2.0:
                 self.play()
                 return 0
             app.set_default_status("")
@@ -1318,6 +1307,14 @@ class Player:
     def show_position(self):
         app.counter(self.values)
         app.progress(self.length and (float(self.offset) / self.length))
+
+    def update_status(self):
+        if self.is_stopped():
+            app.set_default_status(_("Stopped: %s") % self.entry.vp())
+        elif self.is_paused():
+            app.set_default_status(_("Paused: %s") % self.entry.vp())
+        else:
+            app.set_default_status(_("Playing: %s") % self.entry.vp())
 
 # ------------------------------------------
 class FrameOffsetPlayer(Player):
@@ -1424,8 +1421,7 @@ class Application:
         curses.noecho()
         try: curses.meta(1)
         except: pass
-        try: curses.curs_set(0)
-        except: pass
+        self.cursor(0)
         signal.signal(signal.SIGCHLD, signal.SIG_IGN)
         signal.signal(signal.SIGHUP, self.handler_quit)
         signal.signal(signal.SIGINT, self.handler_quit)
@@ -1436,9 +1432,10 @@ class Application:
         self.win_tab = self.win_root.win_tab
         self.win_filelist = self.win_root.win_tab.win_filelist
         self.win_playlist = self.win_root.win_tab.win_playlist
-        self.status = self.win_root.win_status.status
-        self.set_default_status = self.win_root.win_status.set_default_status
-        self.restore_default_status = self.win_root.win_status.restore_default_status
+        self.win_status = self.win_root.win_status
+        self.status = self.win_status.status
+        self.set_default_status = self.win_status.set_default_status
+        self.restore_default_status = self.win_status.restore_default_status
         self.counter = self.win_root.win_counter.counter
         self.progress = self.win_root.win_progress.progress
         self.player = PLAYERS[0]
@@ -1463,45 +1460,46 @@ class Application:
             if not self.player.is_stopped():
                 timeout = 0.5
                 if self.kludge and self.player.poll():
-                    self.player.stopped = 1 # end of playlist hack
+                    self.player.stopped = 1  # end of playlist hack
                     if not self.win_playlist.stop:
-                        pathname = self.win_playlist.next_song()
-                        pathname and self.play(pathname)
+                        entry = self.win_playlist.next_song()
+                        entry and self.play(entry)
             R = [sys.stdin, self.player.stdout_r, self.player.stderr_r]
             self.control.fd and R.append(self.control.fd)
             try: r, w, e = select.select(R, [], [], timeout)
             except select.error: continue
             self.kludge = 1
-            # user input
+            # user
             if sys.stdin in r:
                 c = self.win_root.getch()
                 self.keymapstack.process(c)
-            # player input
+            # player
             if self.player.stderr_r in r:
                 self.player.read_stderr()
-            # player input
+            # player
             if self.player.stdout_r in r:
                 self.player.read_stdout()
+            # remote
             if self.control.fd in r:
                 self.control.handle_command()
 
-    def play(self, pathname, offset = 0):
+    def play(self, entry, offset = 0):
         self.kludge = 0
         self.play_tid = None
-        if pathname is None or offset is None: return
+        if entry is None or offset is None: return
         self.player.stop(quiet=1)
         for self.player in PLAYERS:
-            if self.player.re_files.search(pathname):
-                if self.player.setup(pathname, offset): break
+            if self.player.re_files.search(entry.pathname):
+                if self.player.setup(entry, offset): break
         else:
             app.status(_("Player not found!"), 1)
             self.player.stopped = 0  # keep going
             return
         self.player.play()
 
-    def delayed_play(self, pathname, offset):
+    def delayed_play(self, entry, offset):
         if self.play_tid: self.timeout.remove(self.play_tid)
-        self.play_tid = self.timeout.add(0.5, self.play, (pathname, offset))
+        self.play_tid = self.timeout.add(0.5, self.play, (entry, offset))
 
     def next_song(self):
         self.delayed_play(self.win_playlist.next_song(), 0)
@@ -1510,20 +1508,20 @@ class Application:
         self.delayed_play(self.win_playlist.prev_song(), 0)
 
     def seek(self, offset, relative):
-        if not self.player.pathname: return
+        if not self.player.entry: return
         self.player.seek(offset, relative)
-        self.delayed_play(self.player.pathname, self.player.offset)
+        self.delayed_play(self.player.entry, self.player.offset)
 
     def toggle_pause(self):
-        if not self.player.pathname: return
+        if not self.player.entry: return
         if not self.player.is_stopped():
             if self.player.is_paused(): self.player.unpause()
             else: self.player.pause()
 
     def toggle_stop(self):
-        if not self.player.pathname: return
+        if not self.player.entry: return
         if not self.player.is_stopped(): self.player.stop()
-        else: self.play(self.player.pathname, self.player.offset)
+        else: self.play(self.player.entry, self.player.offset)
 
     def inc_volume(self):
         self.get_volume() and self.set_volume(min(100, self.volume+3))
@@ -1563,8 +1561,7 @@ class Application:
 
     def start_input(self, prompt="", data="", colon=1):
         self.input_mode = 1
-        try: curses.curs_set(1)
-        except: pass
+        self.cursor(1)
         app.keymapstack.push(self.input_keymap)
         self.input_prompt = prompt + (colon and ": " or "")
         self.input_string = data
@@ -1588,8 +1585,7 @@ class Application:
 
     def stop_input(self, *args):
         self.input_mode = 0
-        try: curses.curs_set(0)
-        except: pass
+        self.cursor(0)
         app.keymapstack.pop()
         if not self.input_string:
             app.status(_("cancel"), 1)
@@ -1602,6 +1598,10 @@ class Application:
     def cancel_input(self):
         self.input_string = ""
         self.stop_input()
+
+    def cursor(self, i):
+        try: curses.curs_set(i)
+        except: pass
 
     def quit(self):
         if not self.player.is_stopped(): self.player.stop(quiet=1)
