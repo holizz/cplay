@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.44pre3"
+__version__ = "cplay 1.44pre4"
 
 """
 cplay - A curses front-end for various audio players
@@ -37,11 +37,8 @@ import re
 try: from ncurses import curses
 except ImportError: import curses
 
-try: import termios
-except ImportError: termios = None
-
-try: import TERMIOS
-except ImportError: TERMIOS = termios
+try: import tty
+except ImportError: tty = None
 
 try: import locale; locale.setlocale(locale.LC_ALL, "")
 except: pass
@@ -1129,11 +1126,11 @@ class Application:
         self.keymapstack = KeymapStack()
 
     def setup(self):
-        if termios:
-            self.tcattr = termios.tcgetattr(sys.stdin.fileno())
-            tcattr = termios.tcgetattr(sys.stdin.fileno())
-            tcattr[0] = tcattr[0] & ~(TERMIOS.IXON)
-            termios.tcsetattr(sys.stdin.fileno(), TERMIOS.TCSANOW, tcattr)
+        if tty:
+            self.tcattr = tty.tcgetattr(sys.stdin.fileno())
+            tcattr = tty.tcgetattr(sys.stdin.fileno())
+            tcattr[0] = tcattr[0] & ~(tty.IXON)
+            tty.tcsetattr(sys.stdin.fileno(), tty.TCSANOW, tcattr)
         self.w = curses.initscr()
         curses.cbreak()
         curses.noecho()
@@ -1166,7 +1163,7 @@ class Application:
     def cleanup(self):
         curses.endwin()
         XTERM and sys.stderr.write("\033]0;%s\a" % "xterm")
-        termios and termios.tcsetattr(sys.stdin.fileno(), TERMIOS.TCSADRAIN, self.tcattr)
+        tty and tty.tcsetattr(sys.stdin.fileno(), tty.TCSADRAIN, self.tcattr)
 
     def run(self):
         while 1:
