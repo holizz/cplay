@@ -1,3 +1,15 @@
+2001-01-18  Ulf Betlehem  <flu@iki.fi>
+
+	*** 1.42 released ***
+	
+	* cplay:
+	- ignore bogus gettext module
+	- correct devfs paths
+	- use seconds instead of frames
+	- shuffle speedup (Martin Persson)
+	- changed player hierarchy
+	- improved ogg123 support
+
 2000-12-08  Ulf Betlehem  <flu@iki.fi>
 
 	*** 1.41 released ***

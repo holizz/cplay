@@ -1,11 +1,14 @@
 high priority
 ------------------------------------------
+- merge splay and volume patches
+- seek acceleration based on total_time
+- reset progress when changing song
 - merge id3 patch
-- progress "parser" based on player class
 - toggle time done / time left
 - scrollbar / position indicator
 - hide cursor after SUSP & CONT cycle
 - tilde expansion
+- better input support (readline?)
 - dynamic help page
 - new and more vi-friendly keymap
 - a/A = Append mp3/dir
