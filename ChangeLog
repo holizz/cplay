@@ -1,3 +1,18 @@
+2003-08-26  Ulf Betlehem  <flu@iki.fi>
+
+	*** 1.48 released ***
+
+	* cplay:
+	- xmp regexp (Yuri D'Elia)
+	- URL support in mpg123 regexp (Martin Michlmayr)
+	- rudimentary /etc/cplayrc support (Toni Timonen)
+
+	* cplay.1:
+	- xmp, play and cplayrc references
+
+	* cplayrc:
+	- new file
+
 2003-08-20  Ulf Betlehem  <flu@iki.fi>
 
 	* cplay(1.48pre1):

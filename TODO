@@ -1,6 +1,15 @@
 TODO
 ------------------------------------------
-x - relative pathname support for PLS-playlists
+5 - document <, >
+x - wma (mplayer?)
+x - replace current playlist (useful when streaming?)
+x - browse bookmarks?
+x - use "file" to both get mime and bitrate info?
+x - backspace does not work on gentoo?
+x - index-mode: group/sort/search by ctime, filename, metadata, etc.
+x - screen title patch
+x - expand 2 or more dirs mode for filelist?
+x - musepack
 x - don't require both ID3 and pyogg for one of them to work
 x ? title/status realtime only from playlist
 x - progress bar not always reset?
@@ -14,7 +23,6 @@ x - shell from playlist?
 x - macros / bind user commands
 2 - optionally show all files in a dir
 3 - center current line (requires one-line scrolling)
-5 - long shell input lines should be <... instead of ...>
 x - shell prompt could show number of args? (tagged entries)
 x ? change cwd for shell commands (what about "search results"!?)
 x - embed search command in pathname to view in filelist? (bookmark results)
@@ -114,7 +122,6 @@ misc thoughts
 - i/I = Insert mp3/dir
 - Meta-<, Meta-> commands? (avoid meta)
 - show progress-counter while streaming?
-- Python 1.4 compatibility?
 - support slang?
 - fade in/out mode? (a la repeat/random)
 - crossfade mode (hardly)

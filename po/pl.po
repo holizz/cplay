@@ -1,0 +1,320 @@
+# Copyright (C) 2003 Marcin D. Mikielewicz <perry@ry.pl>
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: 1.0\n"
+"PO-Revision-Date: Mon Apr 14 02:36:52 2003\n"
+"Last-Translator: Marcin D. Mikielewicz <perry@ry.pl>\n"
+"Language-Team: Marcin D. Mikielewicz <perry@ry.pl>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=iso-8859-2\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: cplay:287
+msgid "elapsed"
+msgstr "odegranego"
+
+#: cplay:287
+msgid "remaining"
+msgstr "pozosta³ego"
+
+#: cplay:288
+msgid "Counting %s time"
+msgstr "Licznik %s czasu"
+
+#: cplay:320
+msgid "Quit? (y/N)"
+msgstr "Wyj¶æ (y/N)"
+
+#: cplay:405
+msgid "backward-isearch"
+msgstr "szukanie-wstecz"
+
+#: cplay:407
+msgid "forward-isearch"
+msgstr "szukanie-do przodu"
+
+#: cplay:496 cplay:657 cplay:748 cplay:760 cplay:1148
+msgid "ok"
+msgstr "ok"
+
+#: cplay:505 cplay:517
+msgid "Not found: %s "
+msgstr "Nie znaleziono: %s"
+
+#: cplay:525
+msgid "Help"
+msgstr "Pomoc"
+
+#: cplay:528
+msgid ""
+"\n"
+"  Global                               Space : tag/untag current\n"
+"  ------                               t, T  : tag current/regex\n"
+"  Up, Down, k, j, C-p, C-n,            u, U  : untag current/regex\n"
+"  PgUp, PgDn, K, J,                    i     : invert tags\n"
+"  Home, End, g, G : movement\n"
+"  Enter           : chdir or play      Filelist\n"
+"  Tab             : filelist/playlist  --------\n"
+"  n, p            : next/prev track    BkSpc : parent dir\n"
+"  z, x            : toggle pause/stop  o, s  : goto, search recursively\n"
+"  Left, Right,                         a     : add (tagged) to playlist\n"
+"  C-f, C-b    : seek forward/backward\n"
+"  c           : counter mode           Playlist\n"
+"  C-s, C-r, / : isearch                --------\n"
+"  C-g, Esc    : cancel                 d, D  : delete (tagged) tracks/playlist\n"
+"  1..9, +, -  : volume control         m, M  : move tagged tracks after/before\n"
+"  v           : PCM or MASTER volume   r, R  : toggle repeat/Random mode\n"
+"  C-l, l      : refresh, list mode     s, S  : shuffle/Sort playlist\n"
+"  h, q, Q     : help, quit?, Quit!     w, @  : write playlist, jump to current\n"
+"\n"
+"\n"
+"\n"
+"  Goodies\n"
+"  -------\n"
+"  b, '   : set/get filelist bookmark\n"
+"  X      : stop playlist after each track\n"
+"  C-a, ^ : seek to beginning of current track (restart)\n"
+"  C-e, $ : seek to end of current track (useless?)\n"
+"  !      : shell command ($@ = tagged or current)\n"
+"  "
+msgstr ""
+"\n"
+"  Globalne                             Spacja: zaznacz/odznacz bie¿±cy\n"
+"  ------                               t, T  : zaznacz bie¿±cy/regex\n"
+"  Góra, Dó³, k, j, C-p, C-n,           u, U  : odznacz bie¿±cy/regex\n"
+"  PgUp, PgDn, K, J,                    i     : odwróæ zaznaczenia\n"
+"  Home, End, g, G : poruszanie siê\n"
+"  Enter           : chdir or play      Lista plików\n"
+"  Tab             : filelist/playlist  --------\n"
+"  n, p       : nastêpny/poprzedniutwór BkSpc : katalog macierzysty\n"
+"  z, x       : prze³±cznik pauza/stop  o, s  : id¼ do, szukaj rekursywnie\n"
+"  Lewo, Prawo,                         a     : dodaj (zazanaczone) do listy odgrywania\n"
+"  C-f, C-b    : szukaj w przód/wstecz\n"
+"  c           : tryb licznika          Lista odgrywania\n"
+"  C-s, C-r, / : szukanie               --------\n"
+"  C-g, Esc    : anuluj                 d, D  : delete (tagged) tracks/playlist\n"
+"  1..9, +, -  : kontrola g³o¶no¶ci     m, M  : move tagged tracks after/before\n"
+"  v           : g³o¶no¶æ PCM lub MASTER r, R  : prze³±cznik trybu powtarzania/losowo¶ci\n"
+"  C-l, l      : od¶wie¿, tryb listy    s, S  : przetasuj/Sortuj listê odtwarzania\n"
+"  h, q, Q     : pomoc,wyj¶cie?,Wyj¶cie! w, @  : zapisz listê odtwarzania, skocz do bie¿±cego\n"
+"\n"
+"\n"
+"\n"
+"  Dobrodziejstwa\n"
+"  --------------\n"
+"  b, '   : ustaw/pobierz listê plików z zak³adki\n"
+"  X      : zatrzymaj listê utworów po ka¿dym utworze\n"
+"  C-a, ^ : szukaj do pocz±tku od bie¿±cego utworu (restart)\n"
+"  C-e, $ : szukaj do koñca bie¿±cego utworu (u¿yteczne?)\n"
+"  !      : komenda pow³oki ($@ = zaznaczone lub bie¿±ce)\n"
+"  "
+
+#: cplay:593
+msgid "filename"
+msgstr "plików"
+
+#: cplay:594
+msgid "pathname"
+msgstr "¶cie¿ek"
+
+#: cplay:625
+msgid "Listing %s"
+msgstr "Lista %s"
+
+#: cplay:648
+msgid "Tag regexp"
+msgstr "Zaznacz wyra¿enie"
+
+#: cplay:648
+msgid "Untag regexp"
+msgstr "Odznacz wyra¿enie"
+
+#: cplay:687
+msgid "shell$ "
+msgstr "pow³oka$ "
+
+#: cplay:700
+msgid "\nshell returned %s, press return!\n"
+msgstr "\npow³oka zwróci³a %s, wci¶nij enter!\n"
+
+#: cplay:734
+msgid "bookmark"
+msgstr "zak³adka"
+
+#: cplay:750
+msgid "Not found!"
+msgstr "Nie znaleziono!"
+
+#: cplay:755
+msgid "set bookmark"
+msgstr "ustaw zak³adkê"
+
+#: cplay:764
+msgid "search"
+msgstr "szukaj"
+
+#: cplay:771
+msgid "Searching..."
+msgstr "Wyszukiwanie..."
+
+#: cplay:782
+msgid "search results"
+msgstr "wyniki wyszukiwania"
+
+#: cplay:802
+msgid "Filelist: "
+msgstr "Lista plików: "
+
+#: cplay:813
+msgid "Reading directory..."
+msgstr "Wczytywanie katalogu..."
+
+#: cplay:868
+msgid "goto"
+msgstr "id¼ do"
+
+#: cplay:874
+msgid "Not a directory!"
+msgstr "To nie jest katalog!"
+
+#: cplay:919
+msgid "metadata"
+msgstr "metadata"
+
+#: cplay:925
+msgid "Playlist %s %s %s"
+msgstr "Lista utworów %s %s %s"
+
+#: cplay:926
+msgid "[repeat]"
+msgstr "[powtarzanie]"
+
+#: cplay:927
+msgid "[random]"
+msgstr "[losowo]"
+
+#: cplay:928
+msgid "[stop]"
+msgstr "[zatrzymano]"
+
+#: cplay:967
+msgid "File(\\d+)=(.*)"
+msgstr "Plik(\\d+)=(.*)"
+
+#: cplay:981 cplay:1108
+msgid "Working..."
+msgstr "Zajety..."
+
+#: cplay:990
+msgid "Added: %s"
+msgstr "Dodano: %s"
+
+#: cplay:990
+msgid "Deleted playlist"
+msgstr "Skasowano listê utworów"
+
+#: cplay:1105
+msgid "Shuffled playlist... Oops?"
+msgstr "Przetasowano listê utworów... Oops?"
+
+#: cplay:1112
+msgid "Sorted playlist"
+msgstr "Posortowano listê utworów"
+
+#: cplay:1115
+msgid "repeat"
+msgstr "powtarzanie"
+
+#: cplay:1115
+msgid "Repeat: %s"
+msgstr "Powtarzanie: %s"
+
+#: cplay:1118
+msgid "random"
+msgstr "losowanie"
+
+#: cplay:1118
+msgid "Random: %s"
+msgstr "Losowo¶æ: %s"
+
+#: cplay:1124 cplay:1375
+msgid "stop"
+msgstr "zatrzymanie"
+
+#: cplay:1124
+msgid "Stop playlist: %s"
+msgstr "Zatrzymano listê utworów: %s"
+
+#: cplay:1128
+msgid "on"
+msgstr "w³±czone"
+
+#: cplay:1128
+msgid "off"
+msgstr "wy³±czone"
+
+#: cplay:1134
+msgid "Save playlist"
+msgstr "Zapisz listê utworów"
+
+#: cplay:1310
+msgid "Stopped: %s"
+msgstr "Zatrzymano: %s"
+
+#: cplay:1312
+msgid "Paused: %s"
+msgstr "Pauza: %s"
+
+#: cplay:1314
+msgid "Playing: %s"
+msgstr "Odtwarzanie: %s"
+
+#: cplay:1318
+msgid "Time.*\\s(\\d+):(\\d+).*\\[(\\d+):(\\d+)"
+msgstr "Czas.*\\s(\\d+):(\\d+).*\\[(\\d+):(\\d+)"
+
+#: cplay:1369
+msgid "pause"
+msgstr "pauza"
+
+#: cplay:1370
+msgid "next"
+msgstr "nastêpny"
+
+#: cplay:1371
+msgid "prev"
+msgstr "poprzedni"
+
+#: cplay:1372
+msgid "forward"
+msgstr "do przodu"
+
+#: cplay:1373
+msgid "backward"
+msgstr "wstecz"
+
+#: cplay:1374
+msgid "play"
+msgstr "odtwarzaj"
+
+#: cplay:1491
+msgid "Player not found!"
+msgstr "Nie znaleziono programu odtwarzaj±cego!"
+
+#: cplay:1548
+msgid "Volume %s%%"
+msgstr "G³o¶no¶æ %s%%"
+
+#: cplay:1556
+msgid "%s volume %s%%"
+msgstr "%s g³o¶no¶æ %s%%"
+
+#: cplay:1587
+msgid "cancel"
+msgstr "anulowanie"
+
+#: cplay:1375
+msgid "Usage: %s [-rRv] [ file | dir | playlist ] ...\n"
+msgstr "U¿ycie: %s [-rRv] [ plik | katalog | lista utworów ] ...\n"
+

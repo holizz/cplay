@@ -7,18 +7,21 @@ Description:
 
 Requirements:
 
-        - cplay                 http://www.tf.hut.fi/~flu/cplay/
-        - python                http://www.python.org/
-        - mpg321    (optional)  http://sourceforge.net/projects/mpg321/
-        - ogg123    (optional)  http://www.vorbis.com/
-        - mpg123    (optional)  http://www.mpg123.org/
-        - splay     (optional)  http://splay.sourceforge.net/
-        - madplay   (optional)  http://www.mars.org/home/rob/proj/mpeg/
-        - mikmod    (optional)  http://www.mikmod.org/
-        - fintl     (optional)  http://www.python.org/sigs/i18n-sig/
-        - pyncurses (optional)  http://pyncurses.sourceforge.net/
-        - ID3-py    (optional)  http://id3-py.sourceforge.net/
-        - pyvorbis  (optional)  http://www.duke.edu/~ahc4/pyogg/
+        - cplay                   http://www.tf.hut.fi/~flu/cplay/
+        - python                  http://www.python.org/
+        - python-oss  (optional)  http://net.indra.com/~tim/ossmodule/
+        - mpg321      (optional)  http://sourceforge.net/projects/mpg321/
+        - ogg123      (optional)  http://www.vorbis.com/
+        - mpg123      (optional)  http://www.mpg123.org/
+        - splay       (optional)  http://splay.sourceforge.net/
+        - madplay     (optional)  http://www.mars.org/home/rob/proj/mpeg/
+        - mikmod      (optional)  http://www.mikmod.org/
+        - fintl       (optional)  http://www.python.org/sigs/i18n-sig/
+        - pyncurses   (optional)  http://pyncurses.sourceforge.net/
+        - ID3-py      (optional)  http://id3-py.sourceforge.net/
+        - pyvorbis    (optional)  http://www.duke.edu/~ahc4/pyogg/
+        - xmp         (optional)  http://xmp.sf.net/
+        - sox         (optional)  http://sox.sf.net/
 
 Installation:
 
@@ -30,14 +33,20 @@ Usage:
 
         When in doubt, press 'h' for a friendly help page.
 
+Configuration:
+
+        If you would like to change options passed to the actual
+        players just edit the PLAYERS list in the cplay script or
+        put the PLAYERS definition in /etc/cplayrc. If this file
+        is available it is executed by cplay before initialization.
+
+        Note, there are currently no version control for this file!
+
 Miscellaneous:
 
         In order for either mp3info (ID3) or ogginfo to work,
         both corresponding python modules have to be installed.
         This will probably change someday.
-
-        If you would like to change options passed to the actual
-        players just edit the PLAYERS list in the cplay script.
 
         A playlist can contain URLs, but the playlist itself will
         have to be local. For mpeg streaming, splay is recommended.
