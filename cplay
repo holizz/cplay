@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.47pre2"
+__version__ = "cplay 1.47pre3"
 
 """
 cplay - A curses front-end for various audio players
-Copyright (C) 1998-2002 Ulf Betlehem <flu@iki.fi>
+Copyright (C) 1998-2003 Ulf Betlehem <flu@iki.fi>
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -318,13 +318,13 @@ class RootWindow(Window):
 
     def command_quit(self, seriously=0):
         if app.quit_silently or seriously: app.quit()
-        app.do_input_hook = None
-        app.stop_input_hook = self.stop_quit
+        app.stop_input_hook = None
+        app.do_input_hook = self.do_quit
         app.start_input(_("Quit? (y/N)"))
         
-    def stop_quit(self):
-        if app.input_string[0] in ['y', 'Y']: app.quit()
-        app.status(_("ok"), 1)
+    def do_quit(self, ch=None):
+        if chr(ch) == 'y': app.quit()
+        app.stop_input()
 
 # ------------------------------------------
 class TabWindow(Window):
@@ -534,19 +534,19 @@ class HelpWindow(ListWindow):
   Up, C-p, k, Down, C-n, j,            t, T  : tag current/regex
   PgUp, K, PgDown, J                   u, U  : untag current/regex
   Home, g, End, G                      
-  @           : movement               Filelist
+              : movement               Filelist
   Tab         : filelist/playlist      --------
   n, p        : next/prev track        BkSpc : parent dir
   z, x        : toggle pause/stop      o, s  : goto, search recursively
-  Left, Right,                         a     : add to playlist
+  Left, Right,                         a     : add (tagged) to playlist
   C-b, C-f    : seek backward/forward  
   c           : toggle counter mode    Playlist
   C-s, C-r, / : isearch                --------
-  C-g, Esc    : cancel                 d, D  : delete tracks/playlist
-  1..9, +, -  : volume control         m, M  : move tracks after/before
+  C-g, Esc    : cancel                 d, D  : delete (tagged) tracks/playlist
+  1..9, +, -  : volume control         m, M  : move tagged tracks after/before
   v           : PCM or MASTER volume   r, R  : toggle repeat/Random mode
   C-l, l      : refresh, list mode     s, S  : shuffle/Sort playlist
-  h, q, Q     : help, quit, Quit!      w     : write playlist (.m3u)
+  h, q, Q     : help, quit?, Quit!     w, @  : write playlist, jump to current
   """), "\n")
 
 # ------------------------------------------
@@ -572,16 +572,22 @@ class ListEntry:
 
     def __str__(self):
         mark = self.is_tagged() and "#" or " "
-        return "%s %s%s" % (mark, self.vps[0][1](self), self.slash)
+        return "%s %s%s" % (mark, self.vp(), self.slash)
+
+    def vp(self):
+        return self.vps[0][1](self)
 
     def vp_filename(self):
-        return self.filename or self.pathname  # todo
+        return self.filename or self.vp_pathname()  # todo
 
     def vp_pathname(self):
+        if self.hide_dirs:
+            return string.split(self.pathname, "/", self.hide_dirs+1)[-1]
         return self.pathname
 
     vps = [[_("filename"), vp_filename],
            [_("pathname"), vp_pathname]]
+    hide_dirs = 0
 
 # ------------------------------------------
 class PlaylistEntry(ListEntry):
@@ -608,6 +614,13 @@ class TagListWindow(ListWindow):
         self.keymap.bind('T', self.command_tag_regexp, (1,))
         self.keymap.bind('U', self.command_tag_regexp, (0,))
         self.keymap.bind('l', self.command_change_viewpoint, ())
+        self.keymap.bind('>', self.command_hide_dirs, (1,))
+        self.keymap.bind('<', self.command_hide_dirs, (-1,))
+
+    def command_hide_dirs(self, n):
+        ListEntry.hide_dirs = max(0, ListEntry.hide_dirs+n)
+        app.status(_("Hiding %s dirs") % ListEntry.hide_dirs, 1)
+        self.update()
 
     def command_change_viewpoint(self, klass=ListEntry):
         klass.vps.append(klass.vps.pop(0))
@@ -790,9 +803,6 @@ class FilelistWindow(TagListWindow):
 
 # ------------------------------------------
 class PlaylistWindow(TagListWindow):
-
-    sorts = [[_("filename"), lambda x, y: x.filename > y.filename or -1],
-             [_("pathname"), lambda x, y: x.pathname > y.pathname or -1]]
 
     def __init__(self, parent):
         TagListWindow.__init__(self, parent)
@@ -1008,12 +1018,11 @@ class PlaylistWindow(TagListWindow):
         app.status(_("Shuffled playlist... Oops?"), 1)
 
     def command_sort(self):
-        self.sorts.insert(0, self.sorts.pop())
-        key, function = self.sorts[0]
-        self.buffer.sort(function)
+        app.status(_("Working..."))
+        self.buffer.sort(lambda x, y: x.vp() > y.vp() or -1)
         self.bufptr = 0
         self.update()
-        app.status(_("Sorted playlist by %s") % key, 1)
+        app.status(_("Sorted playlist"), 1)
 
     def command_toggle_repeat(self):
         self.repeat = not self.repeat
@@ -1451,7 +1460,7 @@ class Application:
         app.keymapstack.push(self.input_keymap)
         self.input_prompt = prompt
         self.input_string = data
-        self.do_input()
+        app.status("%s: %s " % (self.input_prompt, self.input_string))
 
     def do_input(self, *args):
         if self.do_input_hook:

@@ -1,3 +1,13 @@
+2003-02-09  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay(1.47pre3):
+	- The "Quit? (y/N)" prompt no longer requires Enter.
+	- The number of dirs to hide can be adjusted with < and > for the
+	  pathname viewpoint. However, this might still change.
+	- Sorting is now done according to viewpoint, which means that 'S'
+	  no longer toggles sorting methods.
+	- Minor help window updates.
+
 2003-01-30  Ulf Betlehem  <flu@iki.fi>
 
 	* cplay(1.47pre2):
