@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.50pre3"
+__version__ = "cplay 1.50pre4"
 
 """
 cplay - A curses front-end for various audio players
@@ -593,7 +593,7 @@ class PlaylistEntry(ListEntry):
         self.metadata = get_tag(self.pathname)
         return self.metadata
 
-    vps = ListEntry.vps[:]
+    vps = ListEntry.vps[:] + [[_("metadata"), vp_metadata]]
 
 # ------------------------------------------
 class TagListWindow(ListWindow):
@@ -908,13 +908,7 @@ class PlaylistWindow(TagListWindow):
         self.keymap.bind('@', self.command_jump_to_active, ())
 
     def command_change_viewpoint(self, klass=PlaylistEntry):
-        if not globals().get("ID3"):
-            try:
-                global ID3, ogg, codecs
-                import ID3, ogg.vorbis, codecs
-                klass.vps.append([_("metadata"), klass.vp_metadata])
-            except ImportError: pass
-        TagListWindow.command_change_viewpoint(self, klass)
+       TagListWindow.command_change_viewpoint(self, klass)
 
     def get_title(self):
         space_out = lambda value, s: value and s or " "*len(s)
@@ -1140,17 +1134,17 @@ def get_tag(pathname):
     # FIXME: use magic instead of file extensions to identify OGGs and MP3s
     if re.compile(".*\.ogg$", re.I).match(pathname):
         try:
+            import ogg.vorbis
             vf = ogg.vorbis.VorbisFile(pathname)
             vc = vf.comment()
             tags = vc.as_dict()
-        except NameError: pass
-        except (IOError, UnicodeError): return os.path.basename(pathname)
+        except: return os.path.basename(pathname)
     elif re.compile(".*\.mp3$", re.I).match(pathname):
         try:
+            import ID3
             vc = ID3.ID3(pathname, as_tuple=1)
             tags = vc.as_dict()
-        except NameError: pass
-        except (IOError, ID3.InvalidTagError): return os.path.basename(pathname)
+        except: return os.path.basename(pathname)
     else:
         return os.path.basename(pathname)
 
@@ -1158,6 +1152,7 @@ def get_tag(pathname):
     title = tags.get("TITLE", [""])[0]
     tag = os.path.basename(pathname)
     try:
+        import codecs
         if artist and title:
             tag = codecs.latin_1_encode(artist)[0] + " - " + codecs.latin_1_encode(title)[0]
         elif artist:
@@ -1165,7 +1160,7 @@ def get_tag(pathname):
         elif title:
             tag = title
         return codecs.latin_1_encode(tag)[0]
-    except (NameError, UnicodeError): return tag
+    except: return tag
 
 # ------------------------------------------
 class Player:
@@ -1640,7 +1635,7 @@ def main():
 
 # ------------------------------------------
 PLAYERS = [
-    FrameOffsetPlayer("ogg123 -q -v -k %d %s", "\.ogg$"),
+    FrameOffsetPlayer("ogg123 -q -v -k %d %s", "\.(ogg|flac|spx)$"),
     FrameOffsetPlayer("splay -f -k %d %s", "(^http://|\.mp[123]$)", 38.28),
     FrameOffsetPlayer("mpg123 -q -v -k %d %s", "(^http://|\.mp[123]$)", 38.28),
     FrameOffsetPlayer("mpg321 -q -v -k %d %s", "(^http://|\.mp[123]$)", 38.28),

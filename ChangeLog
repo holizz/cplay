@@ -1,3 +1,11 @@
+2004-07-25  Ulf Betlehem  <flu@iki.fi>
+	
+	*** 1.50pre4 ***
+	
+	* cplay:
+	- ogg123 now handles .flac and .spx
+	- require either ID3 or ogg modules for viewing metadata
+
 2004-02-09  Ulf Betlehem  <flu@iki.fi>
 
 	*** 1.50pre3 ***
