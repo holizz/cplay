@@ -1,3 +1,8 @@
+2002-12-04  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay (1.46rc1):
+	- includes latest version of Martin's get_tag
+
 2002-11-30  Ulf Betlehem  <flu@iki.fi>
 
 	* cplay (1.46pre9):

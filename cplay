@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.46pre9"
+__version__ = "cplay 1.46rc1"
 
 """
 cplay - A curses front-end for various audio players
@@ -1047,6 +1047,8 @@ class PlaylistWindow(TagListWindow):
 
 # ------------------------------------------
 def get_tag(pathname):
+    if re.compile("^http://").match(pathname):
+        return pathname
     tags = {}
     # FIXME: use magic instead of file extensions to identify OGGs and MP3s
     if re.compile(".*\.ogg$", re.I).match(pathname):
@@ -1055,29 +1057,28 @@ def get_tag(pathname):
             vc = vf.comment()
             tags = vc.as_dict()
         except NameError: pass
+        except (IOError, UnicodeError): return os.path.basename(pathname)
     elif re.compile(".*\.mp3$", re.I).match(pathname):
         try:
             vc = ID3.ID3(pathname, as_tuple=1)
             tags = vc.as_dict()
         except NameError: pass
+        except (IOError, ID3.InvalidTagError): return os.path.basename(pathname)
     else:
         return os.path.basename(pathname)
+
     artist = tags.get("ARTIST", [""])[0]
     title = tags.get("TITLE", [""])[0]
-    if artist and title:
-        tag = artist + " - " + title
-    elif artist:
-        tag = artist
-    elif title:
-        tag = title
-    else:
-        tag = os.path.basename(pathname)
+    tag = os.path.basename(pathname)
     try:
+        if artist and title:
+            tag = str(artist) + " - " + str(title)
+        elif artist:
+            tag = artist
+        elif title:
+            tag = title
         return codecs.latin_1_encode(tag)[0]
-    except NameError:
-        return tag
-    except UnicodeError:
-        return tag
+    except (NameError, UnicodeError): return tag
 
 # ------------------------------------------
 class Player:
