@@ -1,5 +1,20 @@
 2004-02-07  Ulf Betlehem  <flu@iki.fi>
 
+	*** 1.50pre2 ***
+	
+	* po/pt_BR.po:
+	- new file (Ricardo Niederberger Cabral)
+
+	* cplay:
+	- allow shell from playlist
+	- user definable macros (for example MACRO['d'] = '!rm "$@"\n')
+	- new remote control commands: macro <key>, add <pathname>
+
+	* README:
+	- documented macros and shell positional arguments
+
+2004-02-07  Ulf Betlehem  <flu@iki.fi>
+
 	*** 1.50pre1 ***
 	
 	* cplay:
