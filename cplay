@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.46pre6"
+__version__ = "cplay 1.46pre7"
 
 """
 cplay - A curses front-end for various audio players
@@ -85,7 +85,7 @@ def which(program):
 
 # ------------------------------------------
 #def log(msg):
-#    open("log", "a").write("%s\n" % msg)
+#    open("log", "a").write("%.02f %s\n" % (time.time(), msg))
 
 # ------------------------------------------
 class Stack:
@@ -280,7 +280,7 @@ class StatusWindow(Window):
         self.refresh()
 
     def status(self, message, duration = 0):
-        self.current_message = message
+        self.current_message = str(message)
         if duration > 0:
             if self.timeout_tag: app.timeout.remove(self.timeout_tag)
             self.timeout_tag = app.timeout.add(duration, self.timeout)
@@ -576,7 +576,7 @@ class FilelistWindow(ListWindow):
         app.start_input(_("search"))
 
     def stop_search_recursively(self):
-        app.status("Searching...")
+        app.status(_("Searching..."))
         re_tmp = re.compile(app.input_string, re.I)
         results = []
         for entry in self.buffer:
@@ -588,7 +588,7 @@ class FilelistWindow(ListWindow):
                 try: self.search_recursively(re_tmp, entry.pathname, results)
                 except: pass
         if not self.search_mode:
-            self.chdir(_(os.path.join(self.cwd,"search results")))
+            self.chdir(os.path.join(self.cwd,_("search results")))
             self.search_mode = 1
         self.buffer = results
         self.bufptr = 0
@@ -754,16 +754,16 @@ class PlaylistWindow(ListWindow):
 
     def remove(self, item):
         self.buffer.remove(item)
-        try: self.random_prev.remove(item)
-        except ValueError: pass
-        try: self.random_next.remove(item)
-        except ValueError: pass
-        try: self.random_unplayed.remove(item)
-        except ValueError: pass
+        if self.random:
+            try: self.random_prev.remove(item)
+            except ValueError: pass
+            try: self.random_next.remove(item)
+            except ValueError: pass
+            try: self.random_unplayed.remove(item)
+            except ValueError: pass
 
     def add_dir(self, dir):
-        try: filenames = os.listdir(dir)
-        except os.error: return
+        filenames = os.listdir(dir)
         filenames.sort()
         subdirs = []
         for filename in filenames:
@@ -774,33 +774,47 @@ class PlaylistWindow(ListWindow):
                 subdirs.append(pathname)
         map(self.add_dir, subdirs)
 
-    def add(self, pathname):
-        if os.path.isdir(pathname):
-            app.status(_("Adding dir: %s") % pathname)
-            self.add_dir(pathname)
-            app.restore_default_status()
-        elif VALID_PLAYLIST(pathname):
-            dirname = os.path.dirname(pathname)
-            try:
-                file = open(pathname)
-                for filename in map(string.strip, file.readlines()):
-                    if re.match("^(#.*)?$", filename): continue
-                    entry = None
-                    if re.match("^(/|http://)", filename):
-                        entry = ListEntry(filename)
-                    else:
-                        entry = ListEntry(os.path.join(dirname, filename))
-                    app.status(_("Added: %s") % entry.filename, 1)
-                    self.append(entry)
-                file.close()
-                self.pathname = pathname
-            except IOError:
-                app.status(_("IOError"), 1)
+    def add_m3u(self, line):
+        if re.match("^(#.*)?$", line): return
+        if re.match("^(/|http://)", line):
+            self.append(ListEntry(self.fix_url(line)))
         else:
-            entry = ListEntry(pathname)
-            app.status(_("Added: %s") % entry.filename, 1)
-            self.append(entry)
-        self.update()
+            dirname = os.path.dirname(self.pathname)
+            self.append(ListEntry(os.path.join(dirname, line)))
+
+    def add_pls(self, line):
+        # todo: support title & length
+        m = re.match("File(\d+)=(.*)", line)
+        if not m: return
+        self.append(ListEntry(self.fix_url(m.group(2))))
+
+    def add_playlist(self, pathname):
+        self.pathname = pathname
+        if re.search("\.m3u$", pathname, re.I): f = self.add_m3u
+        if re.search("\.pls$", pathname, re.I): f = self.add_pls
+        file = open(pathname)
+        map(f, map(string.strip, file.readlines()))
+        file.close()
+    
+    def add(self, pathname):
+        try:
+            if os.path.isdir(pathname):
+                app.status(_("Working..."))
+                self.add_dir(pathname)
+            elif VALID_PLAYLIST(pathname):
+                self.add_playlist(pathname)
+            else:
+                pathname = self.fix_url(pathname)
+                self.append(ListEntry(pathname))
+            # todo - refactor?
+            filename = os.path.basename(pathname) or pathname
+            app.status(_("Added: %s") % filename, 1)
+        except Exception, e:
+            app.status(e, 2)
+        #self.update()  # why is this here?
+
+    def fix_url(self, url):
+        return re.sub("(http://[^/]+)/?(.*)", "\\1/\\2", url)
 
     def putstr(self, entry, *pos):
         if entry.is_active(): self.attron(curses.A_BOLD)
@@ -965,7 +979,7 @@ class PlaylistWindow(ListWindow):
             self.update()
             app.status(_("ok"), 1)
         except re.error, e:
-            app.status(str(e), 2)
+            app.status(e, 2)
 
     def command_save_playlist(self):
         default = self.pathname or app.win_filelist.cwd
@@ -977,7 +991,7 @@ class PlaylistWindow(ListWindow):
         pathname = app.input_string
         if pathname[0] != '/':
             pathname = "%s%s" % (app.win_filelist.cwd, pathname)
-        if not VALID_PLAYLIST(pathname):
+        if not re.search("\.m3u$", pathname, re.I):
             pathname = "%s%s" % (pathname, ".m3u")
         try:
             file = open(pathname, "w")
@@ -986,8 +1000,8 @@ class PlaylistWindow(ListWindow):
             file.close()
             self.pathname = pathname
             app.status(_("ok"), 1)
-        except IOError:
-            app.status(_("Cannot write playlist!"), 1)
+        except IOError, e:
+            app.status(e, 2)
 
 # ------------------------------------------
 class ListEntry:
@@ -1019,7 +1033,7 @@ class ListEntry:
         return "%s %s%s" % (mark, data, slash)
 
     def vp_filename(self):
-        return self.filename
+        return self.filename or self.pathname # todo?
 
     def vp_pathname(self):
         return self.pathname
@@ -1065,7 +1079,8 @@ class Player:
         return self.argv[0]
 
     def play(self):
-        self.filename = os.path.basename(self.pathname)
+        # todo?
+        self.filename = os.path.basename(self.pathname) or self.pathname
         app.set_default_status(_("Playing: %s") % self.filename)
         self.pid = os.fork()
         if self.pid == 0:
@@ -1274,6 +1289,7 @@ class Application:
         self.set_default_status("")
         self.seek_tag = None
         self.start_tag = None
+        self.kludge = 0
 
     def cleanup(self):
         curses.endwin()
@@ -1287,7 +1303,7 @@ class Application:
             self.win_filelist.listdir_maybe(now)
             if not self.player.is_stopped():
                 timeout = 0.5
-                if self.player.poll():
+                if self.kludge and self.player.poll():
                     pathname = self.win_playlist.next_song()
                     if pathname: self.play(pathname)
                     else: self.player.stopped = 1 # end of playlist hack
@@ -1295,6 +1311,7 @@ class Application:
             self.control.fd and R.append(self.control.fd)
             try: r, w, e = select.select(R, [], [], timeout)
             except select.error: continue
+            self.kludge = 1
             # user input
             if sys.stdin in r:
                 c = self.win_root.getch()
@@ -1309,15 +1326,17 @@ class Application:
                 self.control.handle_command()
 
     def play(self, pathname, offset = 0):
+        self.kludge = 0
         self.seek_tag = None
         self.start_tag = None
         if pathname is None or offset is None: return
-        if not self.player.is_stopped(): self.player.stop(quiet=1)
+        self.player.stop(quiet=1)
         for self.player in PLAYERS:
-            if self.player.re_files.search(os.path.basename(pathname)):
+            if self.player.re_files.search(pathname):
                 if self.player.setup(pathname, offset): break
         else:
             app.status(_("Player not found!"), 1)
+            self.player.stopped = 0  # keep going
             return
         self.player.play()
 
@@ -1367,8 +1386,8 @@ class Application:
             self.volume = ord(fcntl.ioctl(fd, self.mixer_read, "."))
             os.close(fd)
             return 1
-        except:
-            app.status(_("Cannot open mixer device %s") % MIXER, 1)
+        except Exception, e:
+            app.status(e, 2)
 
     def set_volume(self, v):
         try:
@@ -1377,18 +1396,20 @@ class Application:
             fcntl.ioctl(fd, self.mixer_write, "%c%c" % (v, v))
             os.close(fd)
             app.status(_("Volume %d%%") % v, 1)
-        except:
-            app.status(_("Cannot open mixer device %s") % MIXER, 1)
+        except Exception, e:
+            app.status(e, 2)
 
     def use_pcm_volume(self):
         self.mixer_read = MIXER_READ_PCM
         self.mixer_write = MIXER_WRITE_PCM
-        self.get_volume() and app.status(_("PCM volume %s%%" % self.volume), 1)
+        if self.get_volume():
+            app.status(_("PCM volume %s%%" % self.volume), 1)
 
     def use_master_volume(self):
         self.mixer_read = MIXER_READ_MASTER
         self.mixer_write = MIXER_WRITE_MASTER
-        self.get_volume() and app.status(_("MASTER volume %s%%" % self.volume), 1)
+        if self.get_volume():
+            app.status(_("MASTER volume %s%%" % self.volume), 1)
 
     def start_input(self, prompt="", data=""):
         self.input_mode = 1
@@ -1426,6 +1447,7 @@ class Application:
 
     def handler_resize(self, sig, frame):
         # curses trickery
+        #time.sleep(1)
         curses.endwin()
         self.w.refresh()
         self.win_root.resize()
@@ -1439,7 +1461,7 @@ def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], "rRvV")
     except:
-        usage = _("Usage: %s [-rRvV] [ file | dir | playlist.m3u ] ...\n")
+        usage = _("Usage: %s [-rRvV] [ file | dir | playlist ] ...\n")
         sys.stderr.write(usage % sys.argv[0])
         sys.exit(1)
 
@@ -1473,24 +1495,23 @@ def main():
 # ------------------------------------------
 
 PLAYERS = [
-    FrameOffsetPlayer("mpg321 -q -v -k %d %s", "\.mp[123]$", 38.28),
     FrameOffsetPlayer("ogg123 -q -v -k %d %s", "\.ogg$"),
-    FrameOffsetPlayer("splay -f -k %d %s", "\.mp[123]$", 38.28),
-    FrameOffsetPlayer("mpg123 -q -v -k %d %s", "\.mp[123]$", 38.28),
+    FrameOffsetPlayer("splay -f -k %d %s", "(^http://|\.mp[123]$)", 38.28),
+    FrameOffsetPlayer("mpg123 -q -v -k %d %s", "(^http://|\.mp[123]$)", 38.28),
+    FrameOffsetPlayer("mpg321 -q -v -k %d %s", "(^http://|\.mp[123]$)", 38.28),
     NoOffsetPlayer("madplay -q -v --no-tty-control %s", "\.mp[123]$"),
-    NoOffsetPlayer("mikmod -q -p0 %s",
-                   "(^mod\.|\.(mod|xm|fm|s3m|med|col|669|it|mtm)$)")
+    NoOffsetPlayer("mikmod -q -p0 %s", "\.(mod|xm|fm|s3m|med|col|669|it|mtm)$")
     ]
 
 def VALID_SONG(name):
     for player in PLAYERS:
-        if player.re_files.search(os.path.basename(name)):
+        if player.re_files.search(name):
             return 1
 
-RE_PLAYLIST = re.compile(".*\.m3u$", re.I)
+RE_PLAYLIST = re.compile("\.(m3u|pls)$", re.I)
 
 def VALID_PLAYLIST(name):
-    if RE_PLAYLIST.match(name):
+    if RE_PLAYLIST.search(name):
         return 1
 
 # ------------------------------------------

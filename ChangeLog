@@ -1,3 +1,13 @@
+2002-10-24  Ulf Betlehem  <flu@iki.fi>
+
+	* cplay (1.46pre7)
+	- a couple of status message changes
+	- faster delete when not in random mode
+	- rudimentary .pls playlist support
+	- improved streaming support
+	- advance playlist if player not found
+	- changed player priority order
+
 2002-10-21  Ulf Betlehem  <flu@iki.fi>
 
 	* cplay (1.46pre6)
