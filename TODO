@@ -1,98 +1,97 @@
+Keymap
+------------------------------------------
+Filelist: _b_def___________r____w_y_ ABCDEF_HI__LMNOP_RS__VWXYZ
+Playlist: ab__ef________o_________y_ ABC_EF_HI__L_NOP_____VW_YZ 
+Overload: ____________m_____s_______ __________________________
+
 TODO
 ------------------------------------------
-5 - document <, >
-x - wma (mplayer?)
+x - external mixer framework (MIXERS list?)
+x - select player based on magic?
+1 - use 00:00:00 instead of 00h 00m 00s ?
+x - remove inc_volume and dec_volume when control fifo takes args
+4 - support wma (via mplayer?)
+3 - support musepack
+3 - support midi players
+3 - support flac (command line player?)
+3 - support xmms?
 x - replace current playlist (useful when streaming?)
 x - browse bookmarks?
-x - use "file" to both get mime and bitrate info?
-x - backspace does not work on gentoo?
+3 - use "file" to both get mime-type and bitrate info?
+2 - backspace does not work on gentoo?
 x - index-mode: group/sort/search by ctime, filename, metadata, etc.
 x - screen title patch
-x - expand 2 or more dirs mode for filelist?
-x - musepack
-x - don't require both ID3 and pyogg for one of them to work
-x ? title/status realtime only from playlist
-x - progress bar not always reset?
-x - call update_status() from poll()
+x - tree view patch: expand 2 or more dirs mode for filelist?
+4 - don't require both ID3 and pyogg for one of them to work
+    - how to enable the metadata viewpoint?
 x - get_tag() is messy
-x - don't try to write m3u to search results path
-x - shell from playlist?
+5 - don't try to write m3u to search results path
+4 - don't write dir/.m3u files for w + enter
+x - search results mode vs path
+x - shell from playlist? (requires new tab-completion?)
 3 - incremental filter command 'f' like *amp 'j'
+4 - optionally show all files in a dir
 2 - show alternatives in filelist for ambiguous completion?
 1 - :commands?
 x - macros / bind user commands
-2 - optionally show all files in a dir
 3 - center current line (requires one-line scrolling)
 x - shell prompt could show number of args? (tagged entries)
-x ? change cwd for shell commands (what about "search results"!?)
+5 - change cwd for shell commands (crash if "search results"!?)
 x - embed search command in pathname to view in filelist? (bookmark results)
     - /path/name?search=args or /path/name?index=args
     - will allow bookmarks, except for refined searches?
+    - don't allow bookmarking in search results (mode)
 x - command-line history? (now cursor-up cancels)
-x - index based on metadata database (manual update and batch cplay -u dir?)
-x - virtual index-dirs
 x - persistence: save state on exit?
-x - save current config to conf/rc file?
-x - delete playlist entries is too slow
-    - try creating a new list from non-tagged items?
-x - rename/rethink app.kludge
 x - replace help window with generic show file window (move help -> file)
 x - shuffle & sort tagged entries only?
 x - searching for empty string not currently possible with /
 x - make isearch use regexes?
-x - make could compile and run a small program that figures out
-    ioctl numbers on different OS/architectures.
 x - sanity check: (pause or stopped) and seek => play?
-x - add status message for unbound keys / commands
-x - use >, < to scroll window sideways?
-x - number of dirs to hide in vp_pathname. change with >, <
-x - use reverse logic: number of parent dirs to show with >, <
+4 - add status message for unbound keys / commands
+x - change number of parent dirs to show
     .. makes pathname viewpoint obsolete?
 x - search/tag regex/... on str(entry) or entry.vp() ?
-1 - use & for delayed commands?
+    .. currently sorting by vp, tagging by str and searching by str
 2 - wait 0.5s between subsequent next/prev. NOT before starting player!
-    .. or pause current player immediately on next/prec commands?
+    .. or pause current player immediately on next/prev commands?
     .. compare with repeating enter?
 3 - rc-file with
     1. player configs
     2. metadata viewpoint format
     3. pathname viewpoint number of dirs to show (command also?)
     4. persistent bookmarks
-3 - enter opens m3u as virtual dir in filelist
-3 - support midi players
-3 - support flac (command line player?)
-x - support xmms?
-3 - better madplay support
-4 - restricted mode (disable bang)
-4 - pls-playlist TITLE support
-3 - programmable delay between songs (useful for MD synchronized recording)
-0 - improve isearch using bookmarks for previous position?
-4 - error msg when following broken links?
+4 - enter opens playlists as virtual dir in filelist
+5 + restricted mode (bang, write m3u, open path, soft chroot)
+4 - pls-playlist TITLE and LENGTH support
+3 - programmable delay between songs (useful for synchronized recording)
+1 - improve isearch using bookmarks for previous position?
+4 - error msg when following broken links (what?)
 4 - don't block on slow commands (eg. listdir / add dir / recursive search)
-3 - better input support (readline?)
 2 - fast Esc (not possible with keypad?)
 2 - hide cursor after SUSP & CONT cycle
 4 - metadata info page
-4 ? chdir(..) should behave like Backspace
 4 - try small screen layout patch
 2 - check against old ogg.and.mp3.info.patch for missing features
 3 - use i to toggle *info window?
 5 - recursive search should save bufptr of prev dir
-4 - revert sorting change -> always sort according to viewpoint
-3 - clean up app.player.is_stopped() mess
+3 - clean up app.player.is_stopped() and app.kludge mess
 2 - which -> WHICH (upcase global functions?)
 3 - howto select player for streaming http://ip:port urls?
 
 
 misc thoughts
 ------------------------------------------
+- use & for delayed commands?
+- import on demand wrapper?
+- mark or delete duplicate or no-longer existing playlist entries
+- locate and jump to (show) current playlist entry in the filelist
 - fork and exec /bin/sh and select on pipe for command completion?
 - use C as a shortcut for untag/clear all?
 - suspend + resize + continue -> should resize
-- rc-file
 - sort search results
-- magic
 - dynamic help page?
+- better input support (readline?)
 - toggle header / small screen mode (treshold?)
 - randomly play albums (groups / hierarchical playlist)
 - delwin before/in/after resize?
@@ -101,20 +100,19 @@ misc thoughts
 - dust off cddb patch?
 - filtered point of view (obsoleted by recursive searching?)
 - mark filelist entries already in playlist
-- support cd-players
-- sideways scrolling?
 - alternative scrolling method
 - metadata editor?
 - reread dir => search for current entry
 - support alsaplayer, xmp, others?
+- support cd-players?
 - delayed play or mark as next command (play after current is finished)
 - use 'N' to mark as next?
-- reset progress when changing song? (what?)
+- reset progress at end of playlist? (or when changing song?)
 - restore xterm title (not possible with aterm, rxvt, etc?)
 - mpg123 gives jumpy progress info for vbr files (averaging filter?)
 - should there be another way to start playing the playlist
   from the beginning than "next track"? (and Tab+Enter)
-- new and more vi-friendly keymap
+- more vi-friendly keymap?
 - numerical arguments?
 - n and N could correspond to next and previous
 - f and b could select next and previous track?
@@ -124,5 +122,5 @@ misc thoughts
 - show progress-counter while streaming?
 - support slang?
 - fade in/out mode? (a la repeat/random)
-- crossfade mode (hardly)
+- crossfade mode
 - is Enter and cursor position logical / intuitive? (absolutely)

@@ -1,3 +1,10 @@
+2003-12-05  Ulf Betlehem  <flu@iki.fi>
+
+	*** 1.49 released ***
+
+	* README, cplay.1:
+	- document restricted mode
+
 2003-11-08  Ulf Betlehem  <flu@iki.fi>
 
 	*** 1.49pre4 ***

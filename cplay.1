@@ -34,9 +34,11 @@ as positional parameters, which means that "$@" might be useful.
 .PP
 Currently, the following audio formats are supported: MP3 (through
 mpg321, splay, mpg123 or madplay), Ogg Vorbis (through ogg123), and
-various module-formats (through mikmod).
+various module-formats (through mikmod and xmp).
 
 .SH OPTIONS
+.IP \fB\-n
+Enable \fIrestricted\fI mode
 .IP \fB\-r
 Toggles playlist \fIrepeat\fP mode
 .IP \fB\-R
@@ -53,15 +55,19 @@ Toggles PCM and MASTER (default) volume control
 .BR madplay (1),
 .BR mikmod (1),
 .BR xmp (1),
-.BR play (1)
+.BR play (1),
+.BR speexdec (1)
 
 .SH FILES
 .PP
 .I /var/tmp/cplay_control 
-- The optional remote control fifo.
+- Optional remote control fifo.
 
 .I /etc/cplayrc
-- The optional configuration file.
+- Optional configuration file.
+
+.I ~/.cplayrc
+- Optional configuration file.
 
 .SH AUTHOR
 .PP

@@ -16,3 +16,6 @@ recursive-all recursive-install recursive-clean:
 	for i in $(SUBDIRS); do \
 		(cd $$i && make $(ENV) $${target#recursive-}); \
 	done
+
+cplayrc: cplay
+	awk '/^PLAYERS/ {p=1} /^$$/ {p=0} {if (p==1) {print}}' cplay > cplayrc

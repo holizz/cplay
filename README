@@ -22,6 +22,7 @@ Requirements:
         - pyvorbis    (optional)  http://www.duke.edu/~ahc4/pyogg/
         - xmp         (optional)  http://xmp.sf.net/
         - sox         (optional)  http://sox.sf.net/
+        - speex       (optional)  http://www.speex.org/
 
 Installation:
 
@@ -29,18 +30,18 @@ Installation:
 
 Usage:
 
-        cplay [-rRv] [ file | dir | playlist ] ...
+        cplay [-nrRv] [ file | dir | playlist ] ...
 
         When in doubt, press 'h' for a friendly help page.
 
 Configuration:
 
-        If you would like to change options passed to the actual
-        players just edit the PLAYERS list in the cplay script or
-        put the PLAYERS definition in /etc/cplayrc. If this file
-        is available it is executed by cplay before initialization.
+        If you would like to change options passed to the actual players
+        just edit the PLAYERS list in the cplay script or put the PLAYERS
+        definition in either ~/.cplayrc or /etc/cplayrc. If one of these
+        files is available, it is executed by cplay before initialization.
 
-        Note, there are currently no version control for this file!
+        Note, currently there is no version control for the rc-file!
 
 Miscellaneous:
 

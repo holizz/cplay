@@ -6,5 +6,7 @@ PLAYERS = [
     TimeOffsetPlayer("madplay -v --no-tty-control --display-time=remaining -s %d %s", "\.mp[123]$"),
     NoOffsetPlayer("mikmod -q -p0 %s", "\.(mod|xm|fm|s3m|med|col|669|it|mtm)$"),
     NoOffsetPlayer("xmp -q %s", "\.(mod|xm|fm|s3m|med|col|669|it|mtm|stm)$"),
-    NoOffsetPlayer("play %s", "\.(aiff|au|cdr|mp3|ogg|wav)$")
+    NoOffsetPlayer("play %s", "\.(aiff|au|cdr|mp3|ogg|wav)$"),
+    NoOffsetPlayer("speexdec %s", "\.spx$")
     ]
+
