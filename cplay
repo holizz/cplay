@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.44pre2"
+__version__ = "cplay 1.44pre3"
 
 """
 cplay - A curses front-end for various audio players
@@ -1301,8 +1301,10 @@ def main():
         for opt, optarg in opts:
             if opt == '-r': app.win_playlist.command_toggle_repeat()
             if opt == '-R': app.win_playlist.command_toggle_random()
-        for item in args or playlist:
-            app.win_playlist.append(item)
+        if args or playlist:
+            for item in args or playlist:
+                app.win_playlist.append(item)
+            app.win_tab.change_window()
         app.run()
     except SystemExit:
         app.cleanup()
