@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.42"
+__version__ = "cplay 1.43pre2"
 
 """
 cplay - A curses front-end for various audio players
@@ -194,7 +194,7 @@ class HelpWindow(Window):
   C-s       : forward-isearch       Space : mark
   C-r       : backward-isearch      a,c   : mark/clear all
   C-g, Esc  : cancel                m     : move marked tracks
-  1..9      : volume                d     : delete marked tracks
+  1..9, +-  : volume                d     : delete marked tracks
   C-l       : refresh screen        r, R  : toggle repeat/Random mode
   h         : help                  s, S  : shuffle/Sort playlist
   q         : quit                  o     : save playlist (to .m3u file)
@@ -227,17 +227,17 @@ class ProgressWindow(Window):
     def update(self):
         self.move(0, 0)
         self.hline(ord('-'), self.cols)
-        x = int(self.value * self.cols - 1)
-        if x > 0:
+        if self.value > 0:
             self.move(0, 0)
-            self.hline(ord('='), x)
+            x = int(self.value * self.cols)  # 0 to cols-1
+            self.hline(ord('='), x+1)
             self.move(0, x)
             self.addstr('|')
         self.touchwin()
         self.refresh()
 
     def progress(self, value):
-        self.value = min(1, value)
+        self.value = value
         self.update()
 
 # ------------------------------------------
@@ -310,7 +310,9 @@ class RootWindow(Window):
         keymap.bind(12, self.update, ()) # C-l
         keymap.bind([curses.KEY_LEFT, 2], app.seek, (-1.0,)) # Left, C-b
         keymap.bind([curses.KEY_RIGHT, 6], app.seek, (1.0,)) # Right, C-f
-        keymap.bind(range(48,58), app.set_volume) # 1234567890
+        keymap.bind(range(48,58), app.key_volume) # 1234567890
+        keymap.bind('+', app.inc_volume, ())
+        keymap.bind('-', app.dec_volume, ())
         keymap.bind('n', app.next_song, ())
         keymap.bind('p', app.prev_song, ())
         keymap.bind('z', app.toggle_pause, ())
@@ -633,11 +635,11 @@ class FilelistWindow(ListWindow):
     ## We have the result in self.input_string
     def stop_goto(self, reason):
         self.set_input_mode(0)
-        if reason == "cancel":
+        if reason == "cancel" or not self.input_string:
             app.status(_("cancel"), 1)
             return
         dir = self.input_string
-        if dir and dir[0] != '/': dir = "%s%s" % (self.cwd, dir)
+        if dir[0] != '/': dir = "%s%s" % (self.cwd, dir)
         if not os.path.isdir(dir):
             app.status(_("Not a directory!"), 1)
             return
@@ -898,11 +900,10 @@ class PlaylistWindow(ListWindow):
     ## We have the result in self.input_string
     def stop_save_playlist(self, reason):
         self.set_input_mode(0)
-        if reason == "cancel":
+        if reason == "cancel" or not self.input_string:
             app.status(_("cancel"), 1)
             return
         filename = self.input_string
-        if not filename: return
         if filename[0] != '/':
             filename = "%s%s" % (app.win_filelist.cwd, filename)
         if not VALID_PLAYLIST(filename):
@@ -925,7 +926,7 @@ class Player:
         self.stderr_r, self.stderr_w = os.pipe()
         self.pathname = None
         self.filename = None
-        self.seek_step = 0
+        self.seek_step = None
         self.time_done = None
         self.time_left = None
 
@@ -936,6 +937,7 @@ class Player:
         return self.paused
 
     def play(self):
+        self.filename = os.path.basename(self.pathname)
         app.set_default_status(_("Playing: %s") % self.filename)
         self.pid = os.fork()
         if self.pid == 0:
@@ -947,7 +949,7 @@ class Player:
             except: time.sleep(1); os._exit(1)
         self.stopped = 0
         self.paused = 0
-        self.seek_step = 0
+        self.seek_step = None
 
     def pause(self, quiet=0):
         self.paused = 1
@@ -981,20 +983,24 @@ class Player:
         self.time_done = min(time_total, max(0, self.time_done+self.seek_step))
         self.time_left = time_total - self.time_done
         self.show_position()
-        return self.time_done
 
-    ## todo - rewrite?
-    def set_time(self, time_done, time_left):
+    def set_position(self, time_done, time_left):
         if self.seek_step: return
+        if self.time_done == time_done: return
         self.time_done = time_done
         self.time_left = time_left
         self.show_position()
 
-    ## todo - rewrite?
     def show_position(self):
         app.counter(self.time_left)  # todo: toggle mode
-        time_total = 1.0 * (self.time_done + self.time_left)
-        app.progress(time_total and self.time_done/time_total or 0)
+        ratio = self.time_done / (self.time_done + self.time_left + 1.0)
+        app.progress(ratio)
+
+    def parse_stdout(self):
+        os.read(self.stdout_r, 256)
+
+    def parse_stderr(self):
+        os.read(self.stderr_r, 256)
 
     def poll(self):
         try: os.waitpid(self.pid, os.WNOHANG)
@@ -1005,18 +1011,26 @@ class Player:
             return 1
 
 # ------------------------------------------
-class mpg123_Player(Player):
+class ProgressPlayer(Player):
     re_progress = re.compile("Time:\s*(\d+):(\d+).*\[(\d+):(\d+)")
+
+    def parse_stderr(self):
+        m = self.re_progress.search(os.read(self.stderr_r, 256))
+        if m:
+            m1, s1, m2, s2 = map(string.atoi, m.groups())
+            self.set_position(m1*60+s1, m2*60+s2)
+
+# ------------------------------------------
+class mpg123_Player(ProgressPlayer):
     re_files = re.compile(".*\.mp[123]$", re.I)
     command = "%s -qv -k %d"
     name = "mpg123"
 
     def setup(self, pathname, offset):
-        self.pathname = pathname
-        self.filename = os.path.basename(pathname)
         executable = which(self.name)
         self.argv = string.split(self.command % (executable, offset*38.28))
         self.argv.append(pathname)
+        self.pathname = pathname
         return executable or 0
 
 # ------------------------------------------
@@ -1026,26 +1040,23 @@ class sox_Player(Player):
     name = "sox"
 
     def setup(self, pathname, offset):
-        self.pathname = pathname
-        self.filename = os.path.basename(pathname)
         executable = which(self.name)
         self.argv = string.split(self.command % (executable, DSP))
         self.argv.insert(1, pathname)
+        self.pathname = pathname
         return executable or 0
 
 # ------------------------------------------
-class ogg123_Player(Player):
-    re_progress = re.compile("Time:\s*(\d+):(\d+).*\[(\d+):(\d+)")
+class ogg123_Player(ProgressPlayer):
     re_files = re.compile(".*\.ogg$", re.I)
     command = "%s -qv -d oss -k %d"
     name = "ogg123"
 
     def setup(self, pathname, offset):
-        self.pathname = pathname
-        self.filename = os.path.basename(pathname)
         executable = which(self.name)
         self.argv = string.split(self.command % (executable, offset))
         self.argv.append(pathname)
+        self.pathname = pathname
         return executable or 0
 
 # ------------------------------------------
@@ -1134,14 +1145,10 @@ class Application:
                 self.keymapstack.process(c)
             ## player input
             if self.player.stderr_r in r:
-                d = os.read(self.player.stderr_r, 256)
-                m = self.player.re_progress.search(d)
-                if m:
-                    m1, s1, m2, s2 = map(string.atoi, m.groups())
-                    self.player.set_time(m1*60+s1, m2*60+s2)
+                self.player.parse_stderr()
             ## player input
             if self.player.stdout_r in r:
-                os.read(self.player.stdout_r, 256)
+                self.player.parse_stdout()
 
     def play(self, pathname, offset = 0):
         self.seek_tag = None
@@ -1178,19 +1185,37 @@ class Application:
     def seek(self, direction):
         if self.player.is_stopped(): return
         if self.seek_tag: self.timeout.remove(self.seek_tag)
-        args = (self.player.pathname, self.player.seek(direction))
+        self.player.seek(direction)
+        args = (self.player.pathname, self.player.time_done)
         self.seek_tag = self.timeout.add(0.5, self.play, args)
 
-    def set_volume(self, ch):
-        ## todo - this does not work with all mixers
+    def inc_volume(self):
+        self.get_volume() and self.set_volume(min(100, self.volume+1))
+
+    def dec_volume(self):
+        self.get_volume() and self.set_volume(max(0, self.volume-1))
+
+    def key_volume(self, ch):
+        self.set_volume((ch & 0x0f) * 10)
+
+    def get_volume(self):
         try:
-            vol = (ch & 0xf) * 10
-            mixer_fd = os.open(MIXER, 1)
             import fcntl
-            fcntl.ioctl(mixer_fd, 0xc0044d00, "%c%c" % (vol, vol))
-            os.close(mixer_fd)
-            app.status(_("Volume %d%%") % vol, 1)
-        except os.error:
+            fd = os.open(MIXER, 0)
+            self.volume = ord(fcntl.ioctl(fd, 0x80044d00, "."))
+            os.close(fd)
+            return 1
+        except:
+            app.status(_("Cannot open mixer device %s") % MIXER, 1)
+
+    def set_volume(self, v):
+        try:
+            import fcntl
+            fd = os.open(MIXER, 1)
+            fcntl.ioctl(fd, 0xc0044d00, "%c%c" % (v, v))
+            os.close(fd)
+            app.status(_("Volume %d%%") % v, 1)
+        except:
             app.status(_("Cannot open mixer device %s") % MIXER, 1)
 
     def quit(self):

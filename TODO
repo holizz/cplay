@@ -1,8 +1,7 @@
 high priority
 ------------------------------------------
-- merge splay and volume patches
+- splay support
 - seek acceleration based on total_time
-- reset progress when changing song
 - merge id3 patch
 - toggle time done / time left
 - scrollbar / position indicator
@@ -14,13 +13,15 @@ high priority
 - a/A = Append mp3/dir
 - i/I = Insert mp3/dir
 - playlist mark regex/pattern
+- reset progress when changing song?
+- userfriendly quit
+- fast Esc
 
 low priority
 ------------------------------------------
 - delwin when resizing
 - toggle playlist markings
 - hierarchical playlists?
-- Python 1.4 compatibility?
 
 misc thoughts
 ------------------------------------------
@@ -33,5 +34,6 @@ misc thoughts
 - n and N should correspond to next and previous
 - f and b should choose next and previous track?
 - treat .m3u files as directories?
-- support slang?
 - show progress while streaming?
+- Python 1.4 compatibility?
+- support slang?
