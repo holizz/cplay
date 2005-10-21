@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.50pre4"
+__version__ = "cplay 1.50pre5"
 
 """
 cplay - A curses front-end for various audio players
-Copyright (C) 1998-2003 Ulf Betlehem <flu@iki.fi>
+Copyright (C) 1998-2005 Ulf Betlehem <flu@iki.fi>
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -111,10 +111,8 @@ class Keymap:
     def process(self, key):
         if self.methods[key] is None: return 0
         method, args = self.methods[key]
-        if args is None:
-            apply(method, (key,))
-        else:
-            apply(method, args)
+        if args is None: args = (key,)
+        method(*args)
         return 1
 
 # ------------------------------------------
@@ -402,17 +400,18 @@ class ListWindow(Window):
 
     def update(self, force = 1):
         self.bufptr = max(0, min(self.bufptr, len(self.buffer) - 1))
-        scrptr = (self.bufptr / self.rows) * self.rows
-        if force or self.scrptr != scrptr:
-            self.scrptr = scrptr
+        first, last = self.scrptr, self.scrptr + self.rows - 1
+        if (self.bufptr < first): first = self.bufptr
+        if (self.bufptr > last): first = self.bufptr - self.rows + 1
+        if force or self.scrptr != first:
+            self.scrptr = first
             self.move(0, 0)
             self.clrtobot()
             i = 0
-            for entry in self.buffer[self.scrptr:]:
+            for entry in self.buffer[first:first+self.rows]:
                 self.move(i, 0)
                 i = i + 1
                 self.putstr(entry)
-                if self.getyx()[0] == self.rows - 1: break
             if self.visible:
                 self.refresh()
                 self.parent.update_title()
@@ -438,7 +437,7 @@ class ListWindow(Window):
 
     def putstr(self, entry, *pos):
         s = string.translate(str(entry), Window.translationTable)
-        pos and apply(self.move, pos)
+        pos and self.move(*pos)
         if self.hoffset: s = "<%s" % s[self.hoffset+1:]
         self.insstr(cut(s, self.cols))
 
@@ -455,18 +454,16 @@ class ListWindow(Window):
         self.update(force = 0)
 
     def cursor_ppage(self):
-        tmp = self.bufptr % self.rows
-        if tmp == self.bufptr:
-            self.cursor_move(-(tmp+(len(self.buffer) % self.rows) or self.rows))
-        else:
-            self.cursor_move(-(tmp+self.rows))
+        self.bufptr = self.scrptr - 1
+        if self.bufptr < 0: self.bufptr = len(self.buffer) - 1
+        self.scrptr = max(0, self.bufptr - self.rows)
+        self.update()
 
     def cursor_npage(self):
-        tmp = self.rows - self.bufptr % self.rows
-        if self.bufptr + tmp > len(self.buffer):
-            self.cursor_move(len(self.buffer) - self.bufptr)
-        else:
-            self.cursor_move(tmp)
+        self.bufptr = self.scrptr + self.rows
+        if self.bufptr > len(self.buffer) - 1: self.bufptr = 0
+        self.scrptr = self.bufptr
+        self.update()
 
     def cursor_home(self): self.cursor_move(-self.bufptr)
 
@@ -923,16 +920,19 @@ class PlaylistWindow(TagListWindow):
         if self.random: self.random_left.append(item)
 
     def add_dir(self, dir):
-        filenames = os.listdir(dir)
-        filenames.sort()
-        subdirs = []
-        for filename in filenames:
-            pathname = os.path.join(dir, filename)
-            if VALID_SONG(filename):
-                self.append(PlaylistEntry(pathname))
-            if os.path.isdir(pathname):
-                subdirs.append(pathname)
-        map(self.add_dir, subdirs)
+        try:
+            filenames = os.listdir(dir)
+            filenames.sort()
+            subdirs = []
+            for filename in filenames:
+                pathname = os.path.join(dir, filename)
+                if VALID_SONG(filename):
+                    self.append(PlaylistEntry(pathname))
+                if os.path.isdir(pathname):
+                    subdirs.append(pathname)
+            map(self.add_dir, subdirs)
+        except Exception, e:
+            app.status(e, 2)
 
     def add_m3u(self, line):
         if re.match("^(#.*)?$", line): return
@@ -977,7 +977,7 @@ class PlaylistWindow(TagListWindow):
 
     def putstr(self, entry, *pos):
         if entry.is_active(): self.attron(curses.A_BOLD)
-        apply(ListWindow.putstr, (self, entry) + pos)
+        ListWindow.putstr(self, entry, *pos)
         if entry.is_active(): self.attroff(curses.A_BOLD)
 
     def change_active_entry(self, direction):
@@ -1194,6 +1194,7 @@ class Player:
         return self.argv[0]
 
     def play(self):
+        app.status(self.argv)
         self.pid = os.fork()
         if self.pid == 0:
             os.dup2(self.stdin_w, sys.stdin.fileno())
@@ -1288,6 +1289,18 @@ class FrameOffsetPlayer(Player):
             self.set_position(head, head+tail, [head, tail])
 
 # ------------------------------------------
+class FrameOffsetPlayerMpp(Player):
+    re_progress = re.compile(".*\s(\d+):(\d+).*\s(\d+):(\d+)")
+
+    def parse_buf(self):
+        match = self.re_progress.search(self.buf)
+        if match:
+            m1, s1, m2, s2 = map(string.atoi, match.groups())
+            head = m1*60+s1
+            tail = (m2*60+s2) - head
+            self.set_position(head, head+tail , [head, tail])
+
+# ------------------------------------------
 class TimeOffsetPlayer(Player):
     re_progress = re.compile("(\d+):(\d+):(\d+)")
 
@@ -1327,7 +1340,7 @@ class Timeout:
         for tid, (func, args, timeout) in self.dict.items():
             if now >= timeout:
                 self.remove(tid)
-                apply(func, args)
+                func(*args)
         return len(self.dict) and 0.2 or None
 
 # ------------------------------------------
@@ -1343,19 +1356,19 @@ class FIFOControl:
             "backward" : [app.seek, [-1, 1]],
             "play" : [app.toggle_stop, []],
             "stop" : [app.toggle_stop, []],
-            "volume" : [self.volume],
-            "macro" : [app.run_macro],
-            "add" : [app.win_playlist.add],
+            "volume" : [self.volume, None],
+            "macro" : [app.run_macro, None],
+            "add" : [app.win_playlist.add, None],
             "empty" : [app.win_playlist.command_delete_all, []],
             "quit" : [app.quit, []]
         }
 
     def handle_command(self):
         argv = self.fd.readline().strip().split(" ", 1)
-        if len(argv) < 2: argv.append("")
         if argv[0] in self.commands.keys():
-            f = self.commands[argv[0]]
-            apply(*f + (len(f)==1 and [[argv[1]]] or []))
+            f, a = self.commands[argv[0]]
+            if a is None: a = argv[1:]
+            f(*a)
 
     def volume(self, s):
         argv = s.split()
@@ -1547,7 +1560,7 @@ class Application:
 
     def do_input(self, *args):
         if self.do_input_hook:
-            return apply(self.do_input_hook, args)
+            return self.do_input_hook(*args)
         ch = args and args[0] or None
         if ch in [8, 127]: # backspace
             self.input_string = self.input_string[:-1]
@@ -1568,7 +1581,7 @@ class Application:
         if not self.input_string:
             app.status(_("cancel"), 1)
         elif self.stop_input_hook:
-            apply(self.stop_input_hook, args)
+            self.stop_input_hook(*args)
         self.do_input_hook = None
         self.stop_input_hook = None
         self.complete_input_hook = None
@@ -1623,7 +1636,8 @@ def main():
             if opt == "-v": app.mixer("toggle")
         if args or playlist:
             for i in args or playlist:
-                app.win_playlist.add(os.path.abspath(i))
+                i = os.path.exists(i) and os.path.abspath(i) or i
+                app.win_playlist.add(i)
             app.win_tab.change_window()
         app.run()
     except SystemExit:
@@ -1639,6 +1653,7 @@ PLAYERS = [
     FrameOffsetPlayer("splay -f -k %d %s", "(^http://|\.mp[123]$)", 38.28),
     FrameOffsetPlayer("mpg123 -q -v -k %d %s", "(^http://|\.mp[123]$)", 38.28),
     FrameOffsetPlayer("mpg321 -q -v -k %d %s", "(^http://|\.mp[123]$)", 38.28),
+    FrameOffsetPlayerMpp("mppdec --gain 2 --start %d %s", "\.mp[cp+]$"),
     TimeOffsetPlayer("madplay -v --display-time=remaining -s %d %s", "\.mp[123]$"),
     NoOffsetPlayer("mikmod -q -p0 %s", "\.(mod|xm|fm|s3m|med|col|669|it|mtm)$"),
     NoOffsetPlayer("xmp -q %s", "\.(mod|xm|fm|s3m|med|col|669|it|mtm|stm)$"),

@@ -1,3 +1,18 @@
+2005-10-21  Ulf Betlehem  <flu@iki.fi>
+	
+	*** 1.50pre5 ***
+	
+	Over a year since last pre-release! I will probably have broken more
+	things than I have fixed, but here goes:
+	
+	* cplay:
+	- fixed URL bug on command line (Georg Lehner)
+	- replaced deprecated apply()
+	- one-line scrolling
+	- continue after errors during recursive add
+	- added FrameOffsetPlayerMpp
+	- handle_command a bit differently
+
 2004-07-25  Ulf Betlehem  <flu@iki.fi>
 	
 	*** 1.50pre4 ***
