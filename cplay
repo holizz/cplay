@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.50pre5"
+__version__ = "cplay 1.50pre6"
 
 """
 cplay - A curses front-end for various audio players
@@ -1164,13 +1164,15 @@ def get_tag(pathname):
 
 # ------------------------------------------
 class Player:
+
+    stdin_r, stdin_w = os.pipe()
+    stdout_r, stdout_w = os.pipe()
+    stderr_r, stderr_w = os.pipe()
+
     def __init__(self, commandline, files, fps=1):
         self.commandline = commandline
         self.re_files = re.compile(files, re.I)
         self.fps = fps
-        self.stdin_r, self.stdin_w = os.pipe()
-        self.stdout_r, self.stdout_w = os.pipe()
-        self.stderr_r, self.stderr_w = os.pipe()
         self.entry = None
         self.stopped = 0
         self.paused = 0
@@ -1194,7 +1196,6 @@ class Player:
         return self.argv[0]
 
     def play(self):
-        app.status(self.argv)
         self.pid = os.fork()
         if self.pid == 0:
             os.dup2(self.stdin_w, sys.stdin.fileno())
