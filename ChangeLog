@@ -1,3 +1,11 @@
+2006-05-09  Ulf Betlehem  <flu@iki.fi>
+	
+	*** 1.50pre7 ***
+	
+	* cplay:
+	- work-around backspace problem (shrizza)
+	- shell crash work-around
+
 2005-11-10  Ulf Betlehem  <flu@iki.fi>
 	
 	*** 1.50pre6 ***

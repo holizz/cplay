@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-__version__ = "cplay 1.50pre6"
+__version__ = "cplay 1.50pre7"
 
 """
 cplay - A curses front-end for various audio players
@@ -622,8 +622,11 @@ class TagListWindow(ListWindow):
         if pid == 0:
             try: os.execv(argv[0], argv)
             except: os._exit(1)
-        pid, r = os.waitpid(pid, 0)
-        sys.stderr.write("\nshell returned %s, press return!\n" % r)
+        try:
+            # this used to work!
+            pid, r = os.waitpid(pid, 0)
+            sys.stderr.write("\nshell returned %s, press return!\n" % r)
+        except: pass
         sys.stdin.readline()
         app.win_root.update()
         app.restore_default_status()
@@ -711,7 +714,7 @@ class FilelistWindow(TagListWindow):
         self.mtime = None
         self.keymap.bind(['\n', curses.KEY_ENTER],
                          self.command_chdir_or_play, ())
-        self.keymap.bind(['.', curses.KEY_BACKSPACE],
+        self.keymap.bind(['.', 127, curses.KEY_BACKSPACE],
                          self.command_chparentdir, ())
         self.keymap.bind('a', self.command_add_recursively, ())
         self.keymap.bind('o', self.command_goto, ())
@@ -1389,7 +1392,7 @@ class Application:
         self.restricted = 0
         self.input_keymap = Keymap()
         self.input_keymap.bind(list(Window.chars), self.do_input)
-        self.input_keymap.bind(curses.KEY_BACKSPACE, self.do_input, (8,))
+        self.input_keymap.bind([127, curses.KEY_BACKSPACE], self.do_input, (8,))
         self.input_keymap.bind([21, 23], self.do_input)
         self.input_keymap.bind(['\a', 27], self.cancel_input, ())
         self.input_keymap.bind(['\n', curses.KEY_ENTER], self.stop_input, ())
@@ -1595,9 +1598,9 @@ class Application:
         try: curses.curs_set(visibility)
         except: pass
 
-    def quit(self):
+    def quit(self, status=0):
         self.player.stop(quiet=1)
-        sys.exit(0)
+        sys.exit(status)
 
     def handler_resize(self, sig, frame):
         # curses trickery
@@ -1609,7 +1612,7 @@ class Application:
         self.win_root.update()
 
     def handler_quit(self, sig, frame):
-        self.quit()
+        self.quit(1)
 
 # ------------------------------------------
 def main():
