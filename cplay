@@ -1324,6 +1324,14 @@ class NoOffsetPlayer(Player):
 
 # ------------------------------------------
 class MPlayer(Player):
+    re_progress = re.compile("A:.*?(\d+)\.\d+.*?\((\d+):(\d+)\.*\d+\)")
+
+    def parse_buf(self):
+        match = self.re_progress.search(self.buf)
+        if match:
+            curS, totM, totS = map(string.atoi, match.groups())
+            position, length = curS, totM*60+totS
+            self.set_position(position, length, [position, length])
 
     def toggle_pause(self, quiet=0):
         try: stout_w.write(' ')
