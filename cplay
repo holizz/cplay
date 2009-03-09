@@ -63,7 +63,7 @@ except:
 
 # ------------------------------------------
 XTERM = re.search("rxvt|xterm", os.environ["TERM"])
-CONTROL_FIFO = "/var/tmp/cplay_control"
+CONTROL_FIFO = "%s/cplay-control-%s" % (os.environ.get("TMPDIR", "/tmp"), os.environ["USER"])
 
 # ------------------------------------------
 def which(program):
@@ -1346,8 +1346,6 @@ class Timeout:
 # ------------------------------------------
 class FIFOControl:
     def __init__(self):
-        try: self.fd = open(CONTROL_FIFO, "rb+", 0)
-        except: self.fd = None
         self.commands = {
             "pause" : [app.toggle_pause, []],
             "next" : [app.next_song, []],
@@ -1362,6 +1360,16 @@ class FIFOControl:
             "empty" : [app.win_playlist.command_delete_all, []],
             "quit" : [app.quit, []]
         }
+        self.fd = None
+        try:
+            if os.path.exists(CONTROL_FIFO):
+                os.unlink(CONTROL_FIFO)
+            os.mkfifo(CONTROL_FIFO, 0600)
+            self.fd = open(CONTROL_FIFO, "rb+", 0)
+        except IOError:
+            # warn that we're disabling the fifo because someone raced us?
+            return
+
 
     def handle_command(self):
         argv = self.fd.readline().strip().split(" ", 1)
@@ -1446,6 +1454,11 @@ class Application:
         XTERM and sys.stderr.write("\033]0;%s\a" % "xterm")
         tty and tty.tcsetattr(sys.stdin.fileno(), tty.TCSADRAIN, self.tcattr)
         print
+        # remove temporary files
+        try:
+            if os.path.exists(CONTROL_FIFO): os.unlink(CONTROL_FIFO)
+        except IOError:
+            pass
 
     def run(self):
         while 1:

@@ -55,5 +55,5 @@ Miscellaneous:
         It is also possible to pipe a playlist to cplay, as stdin
         will be reopened on startup unless it is attached to a tty.
 
-        Remote control via /var/tmp/cplay_control; see lircrc.
+        Remote control via /tmp/cplay-control-$USER; see lircrc.
 

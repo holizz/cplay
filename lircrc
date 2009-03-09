@@ -3,7 +3,7 @@ begin
     button = SKIP_FORWARD_DOWN
     prog   = irexec
     repeat = 0
-    config = echo "next" > /var/tmp/cplay_control
+    config = echo "next" > ${TMPDIR-/tmp}/cplay-control-$USER
 end
 
 begin
@@ -11,7 +11,7 @@ begin
     button = SKIP_BACKWARD_DOWN
     prog   = irexec
     repeat = 0
-    config = echo "prev" > /var/tmp/cplay_control
+    config = echo "prev" > ${TMPDIR-/tmp}/cplay-control-$USER
 end
 
 begin
@@ -19,7 +19,7 @@ begin
     button = REWIND_DOWN
     prog   = irexec
     repeat = 1
-    config = echo "backward" > /var/tmp/cplay_control
+    config = echo "backward" > ${TMPDIR-/tmp}/cplay-control-$USER
 end
 
 begin
@@ -27,7 +27,7 @@ begin
     button = FORWARD_DOWN
     prog   = irexec
     repeat = 1
-    config = echo "forward" > /var/tmp/cplay_control
+    config = echo "forward" > ${TMPDIR-/tmp}/cplay-control-$USER
 end
 
 begin
@@ -35,7 +35,7 @@ begin
     button = PLAY_DOWN
     prog   = irexec
     repeat = 0
-    config = echo "play" > /var/tmp/cplay_control
+    config = echo "play" > ${TMPDIR-/tmp}/cplay-control-$USER
 end
 
 begin
@@ -43,7 +43,7 @@ begin
     button = STOP_DOWN
     prog   = irexec
     repeat = 0
-    config = echo "stop" > /var/tmp/cplay_control
+    config = echo "stop" > ${TMPDIR-/tmp}/cplay-control-$USER
 end
 
 begin
@@ -51,7 +51,7 @@ begin
     button = VOLUME_UP_DOWN
     prog   = irexec
     repeat = 1
-    config = echo "volup" > /var/tmp/cplay_control
+    config = echo "volup" > ${TMPDIR-/tmp}/cplay-control-$USER
 end
 
 begin
@@ -59,7 +59,7 @@ begin
     button = VOLUME_DOWN_DOWN
     prog   = irexec
     repeat = 1
-    config = echo "voldown" > /var/tmp/cplay_control
+    config = echo "voldown" > ${TMPDIR-/tmp}/cplay-control-$USER
 end
 
 begin
@@ -67,5 +67,5 @@ begin
     button = POWER_DOWN
     prog   = irexec
     repeat = 0
-    config = echo "quit" > /var/tmp/cplay_control
+    config = echo "quit" > ${TMPDIR-/tmp}/cplay-control-$USER
 end
