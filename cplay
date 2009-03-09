@@ -1323,6 +1323,15 @@ class NoOffsetPlayer(Player):
         return 1
 
 # ------------------------------------------
+class MPlayer(Player):
+
+    def toggle_pause(self, quiet=0):
+        try: stout_w.write(' ')
+        except IOError: return
+        self.paused = not self.paused
+        quiet or self.update_status()
+
+# ------------------------------------------
 class Timeout:
     def __init__(self):
         self.next = 0
@@ -1671,7 +1680,8 @@ PLAYERS = [
     NoOffsetPlayer("mikmod -q -p0 %s", "\.(mod|xm|fm|s3m|med|col|669|it|mtm)$"),
     NoOffsetPlayer("xmp -q %s", "\.(mod|xm|fm|s3m|med|col|669|it|mtm|stm)$"),
     NoOffsetPlayer("play %s", "\.(aiff|au|cdr|mp3|ogg|wav)$"),
-    NoOffsetPlayer("speexdec %s", "\.spx$")
+    NoOffsetPlayer("speexdec %s", "\.spx$"),
+    MPlayer("mplayer %s", "^http://|\.(mp[123]|ogg|flac|spx|mp[cp+]|mod|xm|fm|s3m|med|col|669|it|mtm|stm|aiff|au|cdr|wav)$"),
     ]
 
 MACRO = {}
