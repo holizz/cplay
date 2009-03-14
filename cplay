@@ -1333,12 +1333,6 @@ class MPlayer(Player):
             position, length = curS, totM*60+totS
             self.set_position(position, length, [position, length])
 
-    def toggle_pause(self, quiet=0):
-        try: stout_w.write(' ')
-        except IOError: return
-        self.paused = not self.paused
-        quiet or self.update_status()
-
 # ------------------------------------------
 class Timeout:
     def __init__(self):
