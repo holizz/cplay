@@ -484,12 +484,8 @@ class ListWindow(Window):
         if ch in [8, 127]: app.input_string = app.input_string[:-1]
         elif ch: app.input_string = "%s%c" % (app.input_string, ch)
         else: app.input_string = app.input_string or self.last_search
-        index = self.bufptr + advance
+        origin = index = (self.bufptr + advance) % len(self.buffer)
         while 1:
-            if not 0 <= index < len(self.buffer):
-                app.status(_("Not found: %s ") % app.input_string)
-                self.not_found = 1
-                break
             line = string.lower(str(self.buffer[index]))
             if string.find(line, string.lower(app.input_string)) != -1:
                 app.show_input()
@@ -498,10 +494,11 @@ class ListWindow(Window):
                 self.update(force = 0)
                 self.not_found = 0
                 break
-            if self.not_found:
+            index = (index + self.search_direction) % len(self.buffer)
+            if index == origin:
                 app.status(_("Not found: %s ") % app.input_string)
+                self.not_found = 1
                 break
-            index = index + self.search_direction
 
     def hscroll(self, value):
         self.hoffset = max(0, self.hoffset + value)
