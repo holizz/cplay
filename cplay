@@ -1546,25 +1546,43 @@ class Application:
 
     def _mixer(self, cmd, arg):
         try:
-            import ossaudiodev
-            mixer = ossaudiodev.openmixer()
-            get, set = mixer.get, mixer.set
-            self.channels = self.channels or \
-                [['MASTER', ossaudiodev.SOUND_MIXER_VOLUME],
-                 ['PCM', ossaudiodev.SOUND_MIXER_PCM]]
-        except ImportError:
-            import oss
-            mixer = oss.open_mixer()
-            get, set = mixer.read_channel, mixer.write_channel
-            self.channels = self.channels or \
-                [['MASTER', oss.SOUND_MIXER_VOLUME],
-                 ['PCM', oss.SOUND_MIXER_PCM]]
-        if cmd == "toggle": self.channels.insert(0, self.channels.pop())
-        name, channel = self.channels[0]
-        if cmd == "cue": arg = min(100, max(0, get(channel)[0] + arg))
-        if cmd in ["set", "cue"]: set(channel, (arg, arg))
-        app.status(_("%s volume %s%%") % (name, get(channel)[0]), 1)
-        mixer.close()
+            try:
+                import ossaudiodev
+                mixer = ossaudiodev.openmixer()
+                get, set = mixer.get, mixer.set
+                self.channels = self.channels or \
+                    [['MASTER', ossaudiodev.SOUND_MIXER_VOLUME],
+                    ['PCM', ossaudiodev.SOUND_MIXER_PCM]]
+            except ImportError:
+                import oss
+                mixer = oss.open_mixer()
+                get, set = mixer.read_channel, mixer.write_channel
+                self.channels = self.channels or \
+                    [['MASTER', oss.SOUND_MIXER_VOLUME],
+                    ['PCM', oss.SOUND_MIXER_PCM]]
+            app.status(_("%s volume %s%%") % (name, get()[0]), 1)
+            if cmd is "toggle": self.channels.insert(0, self.channels.pop())
+            name, channel = self.channels[0]
+            if cmd is "cue": arg = min(100, max(0, get(channel)[0] + arg))
+            if cmd in ["set", "cue"]: set(channel, (arg, arg))
+            app.status(_("%s volume %s%%") % (name, get(channel)[0]), 1)
+            mixer.close()
+        except IOError: # ALSA
+            import alsaaudio
+            mixer = alsaaudio.Mixer()
+            get, set = mixer.getvolume, mixer.setvolume
+            name = 'MASTER'
+            if cmd is "set": set(arg)
+            if cmd is "cue" and arg!=0: # ALSA doesn't do integer increments
+                oldvolume = get()[0]
+                newvol = get()[0]
+                while (get()[0] is oldvolume):
+                    newvol = min(100, max(0, newvol + arg))
+                    set(newvol)
+                    if (oldvolume==0 and arg<0) or \
+                        (oldvolume==100 and arg>0):
+                        break
+            app.status(_("%s volume %s%%") % (name, get(channel)[0]), 1)
 
     def show_input(self):
         n = len(self.input_prompt)+1
