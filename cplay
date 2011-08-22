@@ -1582,7 +1582,7 @@ class Application:
                     if (oldvolume==0 and arg<0) or \
                         (oldvolume==100 and arg>0):
                         break
-            app.status(_("%s volume %s%%") % (name, get(channel)[0]), 1)
+            app.status(_("%s volume %s%%") % (name, get()[0]), 1)
 
     def show_input(self):
         n = len(self.input_prompt)+1
