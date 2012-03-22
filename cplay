@@ -812,7 +812,7 @@ class FilelistWindow(TagListWindow):
                 elif VALID_PLAYLIST(filename): files.append(pathname)
         except os.error: pass
         dots = ListEntry(os.path.join(self.cwd, ".."), 1)
-        self.buffer = [[dots], []][self.cwd == "/"]
+        self.buffer = []
         for i in dirs: self.buffer.append(ListEntry(i, 1))
         for i in files: self.buffer.append(ListEntry(i))
         if prevdir:
