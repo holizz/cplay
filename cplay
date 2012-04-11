@@ -24,15 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 # ------------------------------------------
 from types import *
-
-import os
-import sys
-import time
-import getopt
-import signal
-import string
-import select
-import re
+import os, sys, time, getopt, signal, string, select, re, random
 
 try: from ncurses import curses
 except ImportError: import curses
@@ -299,7 +291,7 @@ class RootWindow(Window):
     def command_quit(self):
         app.do_input_hook = self.do_quit
         app.start_input(_("Quit? (y/N)"))
-        
+
     def do_quit(self, ch):
         if chr(ch) == 'y': app.quit()
         app.stop_input()
@@ -379,6 +371,7 @@ class ListWindow(Window):
         self.keymap = Keymap()
         self.keymap.bind(['k', curses.KEY_UP, 16], self.cursor_move, (-1,))
         self.keymap.bind(['j', curses.KEY_DOWN, 14], self.cursor_move, (1,))
+        self.keymap.bind('w', self.cursor_move, ("random",))
         self.keymap.bind(['K', curses.KEY_PPAGE], self.cursor_ppage, ())
         self.keymap.bind(['J', curses.KEY_NPAGE], self.cursor_npage, ())
         self.keymap.bind(['g', curses.KEY_HOME], self.cursor_home, ())
@@ -446,7 +439,9 @@ class ListWindow(Window):
         if app.input_mode: app.cancel_input()
         if not self.buffer: return
         self.update_line(refresh = 0)
-        self.bufptr = (self.bufptr + ydiff) % len(self.buffer)
+        if ydiff == "random":
+            self.bufptr = random.randint(0, len(self.buffer))
+        else: self.bufptr = (self.bufptr + ydiff) % len(self.buffer)
         self.update(force = 0)
 
     def cursor_ppage(self):
@@ -987,7 +982,6 @@ class PlaylistWindow(TagListWindow):
                 elif self.repeat: self.random_left = self.buffer[:]
                 else: return
                 if not new:
-                    import random
                     new = random.choice(self.random_left)
                     self.random_left.remove(new)
                 try: self.random_prev.remove(new)
@@ -1063,7 +1057,6 @@ class PlaylistWindow(TagListWindow):
         self.update()
 
     def command_shuffle(self):
-        import random
         l = []
         n = len(self.buffer)
         while n > 0:
