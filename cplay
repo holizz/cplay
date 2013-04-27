@@ -1542,12 +1542,15 @@ class Application:
         self.mixer("set", (ch & 0x0f)*10)
 
     def mixer(self, cmd=None, arg=None):
-        try:
-            self._mixer_oss(cmd, arg)
-        except (IOError, OSError):
-            self._mixer_alsa(cmd, arg)
-        except Exception as e:
-            app.status(e, 2)
+        for _mixer in (self._mixer_oss, self._mixer_alsa, self._mixer_pulse):
+            try:
+                _mixer(cmd, arg)
+            except (IOError, OSError, ImportError):
+                pass
+            except Exception as e:
+                app.status(e, 2)
+            else:
+                break
     def _mixer_oss(self, cmd, arg):
         import ossaudiodev
         mixer = ossaudiodev.openmixer()
@@ -1569,8 +1572,22 @@ class Application:
         mixer = alsaaudio.Mixer(control=self.channels[0])
         get, set = mixer.getvolume, mixer.setvolume
         if cmd == "cue": arg = min(100, max(0, get()[0] + arg))
-        if cmd in ("set", "cue"): set(channel, arg)
+        if cmd in ("set", "cue"): set(arg)
         app.status(_("%s volume %s%%") % (self.channels[0], get()[0]), 1)
+    def _mixer_pulse(self, cmd, arg):
+        import subprocess
+        self.channels = ['Master']
+        if cmd == "toggle":
+            app.status(_("I'm afraid I can't do that, Dave."), 1)
+        def get():
+            out = subprocess.check_output(['pacmd', 'dump-volumes'])
+            return re.search(r'Sink 0.*current_hw.* ([0-9]+)%', out).group(1)
+        def set(arg):
+            subprocess.check_call(['pactl', 'set-sink-volume',
+                    '0', '--', '%s%%' % arg])
+        if cmd == "cue": arg = '%+d' % arg
+        if cmd in ("set", "cue"): set(arg)
+        app.status(_("%s volume %s%%") % (self.channels[0], get()), 1)
     def show_input(self):
         n = len(self.input_prompt)+1
         s = cut(self.input_string, self.win_status.cols-n, left=1)
