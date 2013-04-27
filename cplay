@@ -23,7 +23,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 """
 
 # ------------------------------------------
-from types import *
 import os, sys, time, getopt, signal, string, select, re, random
 
 try: from ncurses import curses
@@ -93,10 +92,10 @@ class Keymap:
         self.methods = [None] * curses.KEY_MAX
 
     def bind(self, key, method, args=None):
-        if type(key) in (TupleType, ListType):
+        if isinstance(key, (tuple, list)):
             for i in key: self.bind(i, method, args)
             return
-        if type(key) is StringType:
+        if isinstance(key, basestring):
             key = ord(key)
         self.methods[key] = (method, args)
 
@@ -389,18 +388,17 @@ class ListWindow(Window):
 
     def update(self, force = 1):
         self.bufptr = max(0, min(self.bufptr, len(self.buffer) - 1))
-        first, last = self.scrptr, self.scrptr + self.rows - 1
-        if (self.bufptr < first): first = self.bufptr
-        if (self.bufptr > last): first = self.bufptr - self.rows + 1
-        if force or self.scrptr != first:
-            self.scrptr = first
+        scrptr = (self.bufptr / self.rows) * self.rows
+        if force or self.scrptr != scrptr:
+            self.scrptr = scrptr
             self.move(0, 0)
             self.clrtobot()
             i = 0
-            for entry in self.buffer[first:first+self.rows]:
+            for entry in self.buffer[self.scrptr:]:
                 self.move(i, 0)
-                i = i + 1
+                i += 1
                 self.putstr(entry)
+                if self.getyx()[0] == self.rows - 1: break
             if self.visible:
                 self.refresh()
                 self.parent.update_title()
@@ -514,10 +512,10 @@ class HelpWindow(ListWindow):
   Enter           : chdir or play      Filelist
   Tab             : filelist/playlist  --------
   n, p            : next/prev track    a     : add (tagged) to playlist
-  z, x            : toggle pause/stop  s     : recursive search
+  z, x            : toggle pause/stop  s, S  : recursive search, toggle sort
                                        BS, o : goto parent/specified dir
   Left, Right,                         m, '  : set/get bookmark
-  C-f, C-b    : seek forward/backward  
+  C-f, C-b    : seek forward/backward
   C-a, C-e    : restart/end track      Playlist
   C-s, C-r, / : isearch                --------
   C-g, Esc    : cancel                 d, D  : delete (tagged) tracks/playlist
@@ -635,12 +633,12 @@ class TagListWindow(ListWindow):
             return line
         if len(results) == 1:
             lm = results[0]
-            lm = lm + (os.path.isdir(lm) and "/" or "")
+            lm += os.path.isdir(lm) and "/" or ""
         else:
             lm = results[0]
             for result in results:
                 for i in range(min(len(result), len(lm))):
-                   if result[i] != lm[i]:
+                    if result[i] != lm[i]:
                         lm = lm[:i]
                         break
         if quote: lm = re.sub('([ \'"()\[\]{}$`])', '\\\\\\1', lm)
@@ -700,6 +698,7 @@ class FilelistWindow(TagListWindow):
         self.startdir = self.cwd
         self.mtime_when = 0
         self.mtime = None
+        self.sortdate = False
         self.keymap.bind(['\n', curses.KEY_ENTER],
                          self.command_chdir_or_play, ())
         self.keymap.bind(['.', 127, curses.KEY_BACKSPACE],
@@ -707,9 +706,16 @@ class FilelistWindow(TagListWindow):
         self.keymap.bind('a', self.command_add_recursively, ())
         self.keymap.bind('o', self.command_goto, ())
         self.keymap.bind('s', self.command_search_recursively, ())
+        self.keymap.bind('S', self.togglesort, ())
         self.keymap.bind('m', self.command_set_bookmark, ())
         self.keymap.bind("'", self.command_get_bookmark, ())
         self.bookmarks = { 39: [self.cwd, 0] }
+
+    def togglesort(self):
+        self.sortdate = not self.sortdate
+        self.listdir()
+        app.status(_("Sort filelist by %s" % (
+                'name', 'modification time')[self.sortdate]), 1)
 
     def command_get_bookmark(self):
         app.do_input_hook = self.do_get_bookmark
@@ -733,7 +739,7 @@ class FilelistWindow(TagListWindow):
     def command_set_bookmark(self):
         app.do_input_hook = self.do_set_bookmark
         app.start_input(_("set bookmark"))
-        
+
     def do_set_bookmark(self, ch):
         app.input_string = ch
         self.bookmarks[ch] = [self.cwd, self.bufptr]
@@ -798,7 +804,9 @@ class FilelistWindow(TagListWindow):
             self.mtime = os.stat(self.cwd)[8]
             self.mtime_when = time.time()
             filenames = os.listdir(self.cwd)
-            filenames.sort()
+            if self.sortdate:
+                filenames.sort(key=lambda x: os.stat(x).st_mtime)
+            else: filenames.sort()
             for filename in filenames:
                 if filename[0] == ".": continue
                 pathname = os.path.join(self.cwd, filename)
@@ -896,7 +904,7 @@ class PlaylistWindow(TagListWindow):
         self.keymap.bind('@', self.command_jump_to_active, ())
 
     def command_change_viewpoint(self, klass=PlaylistEntry):
-       TagListWindow.command_change_viewpoint(self, klass)
+        TagListWindow.command_change_viewpoint(self, klass)
 
     def get_title(self):
         space_out = lambda value, s: value and s or " "*len(s)
@@ -945,7 +953,7 @@ class PlaylistWindow(TagListWindow):
         file = open(pathname)
         map(f, map(string.strip, file.readlines()))
         file.close()
-    
+
     def add(self, pathname, quiet=0):
         try:
             if os.path.isdir(pathname):
@@ -1534,49 +1542,35 @@ class Application:
         self.mixer("set", (ch & 0x0f)*10)
 
     def mixer(self, cmd=None, arg=None):
-        try: self._mixer(cmd, arg)
-        except Exception, e: app.status(e, 2)
-
-    def _mixer(self, cmd, arg):
         try:
-            try:
-                import ossaudiodev
-                mixer = ossaudiodev.openmixer()
-                get, set = mixer.get, mixer.set
-                self.channels = self.channels or \
-                    [['MASTER', ossaudiodev.SOUND_MIXER_VOLUME],
-                    ['PCM', ossaudiodev.SOUND_MIXER_PCM]]
-            except ImportError:
-                import oss
-                mixer = oss.open_mixer()
-                get, set = mixer.read_channel, mixer.write_channel
-                self.channels = self.channels or \
-                    [['MASTER', oss.SOUND_MIXER_VOLUME],
-                    ['PCM', oss.SOUND_MIXER_PCM]]
-            app.status(_("%s volume %s%%") % (name, get()[0]), 1)
-            if cmd is "toggle": self.channels.insert(0, self.channels.pop())
-            name, channel = self.channels[0]
-            if cmd is "cue": arg = min(100, max(0, get(channel)[0] + arg))
-            if cmd in ["set", "cue"]: set(channel, (arg, arg))
-            app.status(_("%s volume %s%%") % (name, get(channel)[0]), 1)
-            mixer.close()
-        except IOError: # ALSA
-            import alsaaudio
-            mixer = alsaaudio.Mixer()
-            get, set = mixer.getvolume, mixer.setvolume
-            name = 'MASTER'
-            if cmd is "set": set(arg)
-            if cmd is "cue" and arg!=0: # ALSA doesn't do integer increments
-                oldvolume = get()[0]
-                newvol = get()[0]
-                while (get()[0] is oldvolume):
-                    newvol = min(100, max(0, newvol + arg))
-                    set(newvol)
-                    if (oldvolume==0 and arg<0) or \
-                        (oldvolume==100 and arg>0):
-                        break
-            app.status(_("%s volume %s%%") % (name, get()[0]), 1)
-
+            self._mixer_oss(cmd, arg)
+        except (IOError, OSError):
+            self._mixer_alsa(cmd, arg)
+        except Exception as e:
+            app.status(e, 2)
+    def _mixer_oss(self, cmd, arg):
+        import ossaudiodev
+        mixer = ossaudiodev.openmixer()
+        get, set = mixer.get, mixer.set
+        self.channels = (self.channels or
+                [['MASTER', ossaudiodev.SOUND_MIXER_VOLUME],
+                ['PCM', ossaudiodev.SOUND_MIXER_PCM]])
+        if cmd == "toggle": self.channels = self.channels[::-1]
+        name, channel = self.channels[0]
+        if cmd == "cue": arg = min(100, max(0, get(channel)[0] + arg))
+        if cmd in ["set", "cue"]: set(channel, (arg, arg))
+        app.status(_("%s volume %s%%") % (name, get(channel)[0]), 1)
+        mixer.close()
+    def _mixer_alsa(self, cmd, arg):
+        import alsaaudio
+        self.channels = self.channels or ['Master', 'PCM']
+        if cmd == "toggle":
+            self.channels = self.channels[::-1]
+        mixer = alsaaudio.Mixer(control=self.channels[0])
+        get, set = mixer.getvolume, mixer.setvolume
+        if cmd == "cue": arg = min(100, max(0, get()[0] + arg))
+        if cmd in ("set", "cue"): set(channel, arg)
+        app.status(_("%s volume %s%%") % (self.channels[0], get()[0]), 1)
     def show_input(self):
         n = len(self.input_prompt)+1
         s = cut(self.input_string, self.win_status.cols-n, left=1)
@@ -1691,7 +1685,7 @@ PLAYERS = [
     NoOffsetPlayer("xmp -q %s", "\.(mod|xm|fm|s3m|med|col|669|it|mtm|stm)$"),
     NoOffsetPlayer("play %s", "\.(aiff|au|cdr|mp3|ogg|wav)$"),
     NoOffsetPlayer("speexdec %s", "\.spx$"),
-    MPlayer("mplayer -vo null %s", "^http://|\.(mp[123]|ogg|flac|spx|mp[cp+]|mod|xm|fm|s3m|med|col|669|it|mtm|stm|aiff|au|cdr|wav)$"),
+    MPlayer("mplayer -vo null %s", "^http://|\.(mp[123]|ogg|flac|spx|mp[cp+]|mod|xm|fm|s3m|med|col|669|it|mtm|stm|aiff|au|cdr|wav|ape|m4a|wma)$"),
     ]
 
 MACRO = {}
