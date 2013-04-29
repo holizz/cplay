@@ -188,9 +188,7 @@ class StatusWindow(Window):
         self.refresh()
 
     def status(self, message, duration=0):
-        if not isinstance(message, bytes):
-            message = message.encode('utf8', 'replace').decode('utf8')
-        self.current_message = message
+        self.current_message = filter_unicode(message)
         if self.tid:
             APP.timeout.remove(self.tid)
         if duration:
@@ -546,10 +544,7 @@ class ListEntry(object):
 
     def __str__(self):
         mark = '#' if self.is_tagged() else ' '
-        vp = self.vp()
-        if not isinstance(vp, bytes):
-            vp = vp.encode('utf8', 'replace').decode('utf8')
-        return "%s %s%s" % (mark, vp, self.slash)
+        return "%s %s%s" % (mark, filter_unicode(self.vp()), self.slash)
 
     def vp(self):
         return self.vps[0][1](self)
@@ -1818,6 +1813,14 @@ def cut(s, n, left=False):
         return "<%s" % s[-n + 1:]
     else:
         return "%s>" % s[:n - 1]
+
+
+def filter_unicode(s):
+    if isinstance(s, bytes):
+        return s.decode(sys.getfilesystemencoding(), 'replace').encode('utf8')
+    else:
+        return s.encode(sys.getfilesystemencoding(), 'replace').decode(
+                sys.getfilesystemencoding())
 
 
 def main():
