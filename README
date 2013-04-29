@@ -37,11 +37,7 @@ Usage:
 Configuration:
 
         If you would like to change options passed to the actual players
-        just edit the PLAYERS list in the cplay script or put the PLAYERS
-        definition in either ~/.cplayrc or /etc/cplayrc. If one of these
-        files is available, it is executed by cplay before initialization.
-
-        Note, currently there is no version control for the rc-file!
+        just edit the PLAYERS list in the cplay script.
 
 Miscellaneous:
 
