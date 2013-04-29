@@ -188,7 +188,9 @@ class StatusWindow(Window):
         self.refresh()
 
     def status(self, message, duration=0):
-        self.current_message = str(message)
+        if not isinstance(message, bytes):
+            message = message.encode('utf8', 'replace').decode('utf8')
+        self.current_message = message
         if self.tid:
             APP.timeout.remove(self.tid)
         if duration:
@@ -544,7 +546,10 @@ class ListEntry(object):
 
     def __str__(self):
         mark = '#' if self.is_tagged() else ' '
-        return "%s %s%s" % (mark, self.vp(), self.slash)
+        vp = self.vp()
+        if not isinstance(vp, bytes):
+            vp = vp.encode('utf8', 'replace').decode('utf8')
+        return "%s %s%s" % (mark, vp, self.slash)
 
     def vp(self):
         return self.vps[0][1](self)
@@ -1322,7 +1327,8 @@ class Player(object):
 
 
 class FrameOffsetPlayer(Player):
-    re_progress = re.compile(r"Time.*\s(\d+):(\d+).*\[(\d+):(\d+)")
+    re_progress = re.compile(
+            r"Time.*\s(\d+):(\d+).*\[(\d+):(\d+)".encode('ascii'))
 
     def parse_buf(self):
         match = self.re_progress.search(self.buf)
@@ -1333,7 +1339,7 @@ class FrameOffsetPlayer(Player):
 
 
 class FrameOffsetPlayerMpp(Player):
-    re_progress = re.compile(r".*\s(\d+):(\d+).*\s(\d+):(\d+)")
+    re_progress = re.compile(r".*\s(\d+):(\d+).*\s(\d+):(\d+)".encode('ascii'))
 
     def parse_buf(self):
         match = self.re_progress.search(self.buf)
@@ -1345,7 +1351,7 @@ class FrameOffsetPlayerMpp(Player):
 
 
 class TimeOffsetPlayer(Player):
-    re_progress = re.compile(r"(\d+):(\d+):(\d+)")
+    re_progress = re.compile(r"(\d+):(\d+):(\d+)".encode('ascii'))
 
     def parse_buf(self):
         match = self.re_progress.search(self.buf)
@@ -1366,7 +1372,8 @@ class NoOffsetPlayer(Player):
 
 
 class MPlayer(Player):
-    re_progress = re.compile(r"^A:.*?(\d+)\.\d \([^)]+\) of (\d+)\.\d")
+    re_progress = re.compile(
+            r"^A:.*?(\d+)\.\d \([^)]+\) of (\d+)\.\d".encode('ascii'))
 
     def parse_buf(self):
         match = self.re_progress.search(self.buf)

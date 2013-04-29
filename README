@@ -4,23 +4,25 @@ Description:
         written in Python. It aims to provide a power-user-friendly interface
         with simple filelist and playlist control.
 
-Requirements:
+Requirement:
 
-        - cplay                   http://www.tf.hut.fi/~flu/cplay/
-        - python                  http://www.python.org/
+        - python 2.6+             http://www.python.org/
 
-Optional:
+Music players supported:
 
         - mpg321                  http://sourceforge.net/projects/mpg321/
         - ogg123                  http://www.vorbis.com/
         - mpg123                  http://www.mpg123.org/
         - mplayer                 http://www.mplayerhq.hu/
-        - splay                   http://splay.sourceforge.net/
         - madplay                 http://www.mars.org/home/rob/proj/mpeg/
+        - splay                   http://splay.sourceforge.net/
         - mikmod                  http://www.mikmod.org/
         - xmp                     http://xmp.sf.net/
         - sox                     http://sox.sf.net/
         - speex                   http://www.speex.org/
+
+Other optional components:
+
         - ID3-py                  http://id3-py.sourceforge.net/
         - pyvorbis                http://www.duke.edu/~ahc4/pyogg/
 
