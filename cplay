@@ -1626,16 +1626,12 @@ class Application(object):
             self.play(self.player.entry, self.player.offset)
 
     def key_volume(self, ch):
-        if self._mixer is None:
-            APP.status(_("no mixer."))
-        else:
-            self._mixer.set((ch - ord('0')) * 10)
-            APP.status(self._mixer)
+        self.mixer('set', (ch - ord('0')) * 10)
 
     def mixer(self, cmd, *args):
         if self._mixer is not None:
             getattr(self._mixer, cmd)(*args)
-        APP.status(self._mixer or _("No mixer."))
+        APP.status(self._mixer or _("No mixer."), 1)
 
     def show_input(self):
         n = len(self.input_prompt) + 1

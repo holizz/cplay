@@ -1,7 +1,7 @@
 PREFIX = /usr/local
 ENV = PREFIX=$(PREFIX)
-
 SUBDIRS = po
+.PHONY: clean lint
 
 all: recursive-all
 
@@ -17,3 +17,6 @@ recursive-all recursive-install recursive-clean:
 	for i in $(SUBDIRS); do \
 		(cd $$i && make $(ENV) $${target#recursive-}); \
 	done
+
+lint:
+	pylint --indent-string='    ' cplay
