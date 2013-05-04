@@ -188,7 +188,7 @@ class StatusWindow(Window):
         self.refresh()
 
     def status(self, message, duration=0):
-        self.current_message = filter_unicode(message)
+        self.current_message = filter_unicode(str(message))
         if self.tid:
             APP.timeout.remove(self.tid)
         if duration:
