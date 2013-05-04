@@ -1475,6 +1475,8 @@ class Application(object):
                 self._mixer = mixer()
             except Exception:
                 pass
+            else:
+                break
 
     def command_macro(self):
         APP.do_input_hook = self.do_macro
