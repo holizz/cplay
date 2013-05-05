@@ -672,7 +672,7 @@ class TagListWindow(ListWindow):
     def command_tag_regexp(self, value):
         self.tag_value = value
         APP.stop_input_hook = self.stop_tag_regexp
-        APP.start_input(_("Tag regexp") if value else _("Untag regexp"))
+        APP.start_input(_("tag regexp") if value else _("untag regexp"))
 
     def stop_tag_regexp(self):
         try:
@@ -1167,7 +1167,7 @@ class PlaylistWindow(TagListWindow):
             return
         default = self.pathname or "%s/" % APP.win_filelist.cwd
         APP.stop_input_hook = self.stop_save_playlist
-        APP.start_input(_("Save playlist"), default)
+        APP.start_input(_("save playlist"), default)
 
     def stop_save_playlist(self):
         pathname = APP.input_string
@@ -1642,7 +1642,7 @@ class Application(object):
         self.input_mode = 1
         self.cursor(1)
         APP.keymapstack.push(self.input_keymap)
-        self.input_prompt = prompt + (":" if colon else "")
+        self.input_prompt = prompt + (": " if colon else " ")
         self.input_string = data
         self.show_input()
 
