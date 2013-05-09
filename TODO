@@ -6,18 +6,10 @@ Overload: ____________m_____s_______ __________________________
 
 TODO
 ------------------------------------------
-x - external mixer framework (MIXERS list?)
-x - select player based on magic?
-1 - use 00:00:00 instead of 00h 00m 00s ?
-x - remove inc_volume and dec_volume when control fifo takes args
-4 - support wma (via mplayer?)
-3 - support musepack
+  - when first player fails immediately, try other players
 3 - support midi players
-3 - support flac (command line player?)
-3 - support xmms?
 x - replace current playlist (useful when streaming?)
 x - browse bookmarks?
-3 - use "file" to both get mime-type and bitrate info?
 2 - backspace does not work on gentoo?
 x - index-mode: group/sort/search by ctime, filename, metadata, etc.
 x - screen title patch
@@ -26,7 +18,6 @@ x - tree view patch: expand 2 or more dirs mode for filelist?
     - how to enable the metadata viewpoint?
 x - get_tag() is messy
 5 - don't try to write m3u to search results path
-4 - don't write dir/.m3u files for w + enter
 x - search results mode vs path
 x - shell from playlist? (requires new tab-completion?)
 3 - incremental filter command 'f' like *amp 'j'
@@ -34,7 +25,6 @@ x - shell from playlist? (requires new tab-completion?)
 2 - show alternatives in filelist for ambiguous completion?
 1 - :commands?
 x - macros / bind user commands
-3 - center current line (requires one-line scrolling)
 x - shell prompt could show number of args? (tagged entries)
 5 - change cwd for shell commands (crash if "search results"!?)
 x - embed search command in pathname to view in filelist? (bookmark results)
@@ -76,7 +66,6 @@ x - search/tag regex/... on str(entry) or entry.vp() ?
 3 - use i to toggle *info window?
 5 - recursive search should save bufptr of prev dir
 3 - clean up app.player.is_stopped() and app.kludge mess
-2 - which -> WHICH (upcase global functions?)
 3 - howto select player for streaming http://ip:port urls?
 
 

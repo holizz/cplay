@@ -105,10 +105,8 @@ class Window(object):
     def __init__(self, parent):
         self.parent = parent
         self.children = []
-        self.name = None
-        self.keymap = None
         self.visible = True
-        self.w = None
+        self.name = self.keymap = self.w = None
         self.ypos = self.xpos = self.rows = self.cols = 0
         self.resize()
         if parent:
@@ -307,7 +305,7 @@ class TabWindow(Window):
         self.clrtobot()
         self.refresh()
         child = self.children[self.active_child]
-        child.visible = 1
+        child.visible = True
         child.update()
 
     def update_title(self, refresh=True):
@@ -349,10 +347,8 @@ class ListWindow(Window):
     def __init__(self, parent):
         Window.__init__(self, parent)
         self.buffer = []
-        self.bufptr = self.scrptr = 0
-        self.search_direction = 0
+        self.bufptr = self.scrptr = self.search_direction = self.hoffset = 0
         self.last_search = ""
-        self.hoffset = 0
         self.keymap = Keymap()
         self.keymap.bind(['k', curses.KEY_UP, 16], self.cursor_move, (-1, ))
         self.keymap.bind(['j', curses.KEY_DOWN, 14], self.cursor_move, (1, ))
@@ -407,8 +403,8 @@ class ListWindow(Window):
 
     def get_title(self, data=""):
         pos = "%s-%s/%s" % (self.scrptr + min(1, len(self.buffer)),
-                            min(self.scrptr + self.rows, len(self.buffer)),
-                            len(self.buffer))
+                min(self.scrptr + self.rows, len(self.buffer)),
+                len(self.buffer))
         width = self.cols - len(pos) - 2
         data = cut(data, width - len(self.name), 1)
         return "%-*s  %s" % (width, cut(self.name + data, width), pos)
@@ -534,13 +530,13 @@ class ListEntry(object):
         self.filename = os.path.basename(pathname)
         self.pathname = pathname
         self.slash = '/' if directory else ''
-        self.tagged = 0
+        self.tagged = False
 
     def set_tagged(self, value):
         self.tagged = value
 
     def is_tagged(self):
-        return self.tagged == 1
+        return self.tagged
 
     def __str__(self):
         mark = '#' if self.is_tagged() else ' '
@@ -587,10 +583,10 @@ class TagListWindow(ListWindow):
         self.tag_value = None
         self.keymap.bind(' ', self.command_tag_untag, ())
         self.keymap.bind('i', self.command_invert_tags, ())
-        self.keymap.bind('t', self.command_tag, (1, ))
-        self.keymap.bind('u', self.command_tag, (0, ))
-        self.keymap.bind('T', self.command_tag_regexp, (1, ))
-        self.keymap.bind('U', self.command_tag_regexp, (0, ))
+        self.keymap.bind('t', self.command_tag, (True, ))
+        self.keymap.bind('u', self.command_tag, (False, ))
+        self.keymap.bind('T', self.command_tag_regexp, (True, ))
+        self.keymap.bind('U', self.command_tag_regexp, (False, ))
         self.keymap.bind('l', self.command_change_viewpoint, ())
         self.keymap.bind('!', self.command_shell, ())
 
@@ -806,7 +802,7 @@ class FilelistWindow(TagListWindow):
         self.mtime_when = now
         self.oldposition[self.cwd] = self.bufptr
         try:
-            self.mtime == os.stat(self.cwd)[8] or self.listdir(quiet=1)
+            self.mtime == os.stat(self.cwd)[8] or self.listdir(quiet=True)
         except OSError:
             pass
 
@@ -908,8 +904,8 @@ class FilelistWindow(TagListWindow):
             return
         APP.status(_("Adding tagged files"), 1)
         for entry in l:
-            APP.win_playlist.add(entry.pathname, quiet=1)
-            entry.set_tagged(0)
+            APP.win_playlist.add(entry.pathname, quiet=True)
+            entry.set_tagged(False)
         self.update()
 
 
@@ -917,18 +913,16 @@ class PlaylistWindow(TagListWindow):
     def __init__(self, parent):
         TagListWindow.__init__(self, parent)
         self.pathname = None
-        self.repeat = 0
-        self.random = 0
+        self.repeat = self.random = self.stop = False
         self.random_prev = []
         self.random_next = []
         self.random_left = []
-        self.stop = 0
         self.keymap.bind(['\n', curses.KEY_ENTER],
                          self.command_play, ())
         self.keymap.bind('d', self.command_delete, ())
         self.keymap.bind('D', self.command_delete_all, ())
-        self.keymap.bind('m', self.command_move, (1, ))
-        self.keymap.bind('M', self.command_move, (0, ))
+        self.keymap.bind('m', self.command_move, (True, ))
+        self.keymap.bind('M', self.command_move, (False, ))
         self.keymap.bind('s', self.command_shuffle, ())
         self.keymap.bind('S', self.command_sort, ())
         self.keymap.bind('r', self.command_toggle_repeat, ())
@@ -992,12 +986,11 @@ class PlaylistWindow(TagListWindow):
         for line in open(pathname):
             f(line.strip())
 
-    def add(self, pathname, quiet=0):
+    def add(self, pathname, quiet=False):
         try:
             if os.path.isdir(pathname):
                 APP.status(_("Working..."))
-                self.add_dir(pathname)
-                #FIXME: self.add_dir(os.path.abspath(pathname))
+				self.add_dir(os.path.abspath(pathname))
             elif valid_playlist(pathname):
                 self.add_playlist(pathname)
             else:
@@ -1098,7 +1091,7 @@ class PlaylistWindow(TagListWindow):
             except ValueError:
                 pass
         else:
-            current_entry.set_tagged(1)
+            current_entry.set_tagged(False)
             del self.buffer[self.bufptr]
         if self.random:
             self.random_prev = self.not_tagged(self.random_prev)
@@ -1195,14 +1188,11 @@ class Player(object):
         self.stdin_r, self.stdin_w = os.pipe()
         self.stdout_r, self.stdout_w = os.pipe()
         self.stderr_r, self.stderr_w = os.pipe()
-        self.entry = None
-        self.stopped = False
-        self.paused = False
-        self.offset = 0
-        self.time_setup = None
+        self.stopped = self.paused = False
+        self.entry = self.time_setup = None
+        self.offset = self.step = self.length = 0
         self.buf = ''
-        self.step = self.tid = self.argv = None
-        self.values = self.length = self.pid = None
+        self.tid = self.argv = self.values = self.pid = None
 
     def setup(self, entry, offset):
         self.argv = self.commandline.split()
@@ -1215,8 +1205,7 @@ class Player(object):
         self.entry = entry
         if offset == 0:
             APP.progress(0)
-            self.offset = 0
-            self.length = 0
+            self.offset = self.length = 0
             self.values = [0, 0]
         self.time_setup = time.time()
         return self.argv[0]
@@ -1230,14 +1219,13 @@ class Player(object):
             os.setpgrp()
             try:
                 os.execv(self.argv[0], self.argv)
-            except Exception:
+            except OSError:
                 os._exit(1)
-        self.stopped = 0
-        self.paused = 0
+        self.stopped = self.paused = False
         self.step = 0
         self.update_status()
 
-    def stop(self, quiet=0):
+    def stop(self, quiet=False):
         if self.paused:
             self.toggle_pause(quiet)
         try:
@@ -1253,7 +1241,7 @@ class Player(object):
         if not quiet:
             self.update_status()
 
-    def toggle_pause(self, quiet=0):
+    def toggle_pause(self, quiet=False):
         try:
             os.kill(-self.pid, [signal.SIGSTOP, signal.SIGCONT][self.paused])
         except OSError:
@@ -1435,7 +1423,7 @@ class FIFOControl(object):
 
     def volume(self, s):
         argv = s.split()
-        APP.mixer(argv[0], (int(argv[1]), ))
+        APP.mixer(argv[0], int(argv[1]))
 
 
 class Application(object):
@@ -1444,23 +1432,15 @@ class Application(object):
         self.input_mode = 0
         self.input_prompt = ""
         self.input_string = ""
-        self.do_input_hook = None
-        self.stop_input_hook = None
-        self.complete_input_hook = None
-        self.restore_default_status = None
-        self.w = None
-        self.status = None
-        self.counter = None
+        self.do_input_hook = self.stop_input_hook = None
+        self.complete_input_hook = self.restore_default_status = None
+        self.w = self.status = self.counter = None
         self.set_default_status = None
         self.win_status = self.win_root = self.win_tab = None
         self.win_filelist = self.win_playlist = None
-        self.play_tid = None
-        self.control = None
-        self.kludge = None
-        self.tcattr = None
-        self.timeout = None
-        self.progress = None
-        self.player = None
+        self.play_tid = self.control = self.kludge = None
+        self.tcattr = self.timeout = self.progress = None
+        self.player = self._mixer = None
         self.restricted = False
         self.input_keymap = Keymap()
         self.input_keymap.bind(list(string.printable), self.do_input)
@@ -1469,7 +1449,6 @@ class Application(object):
         self.input_keymap.bind([21, 23], self.do_input)
         self.input_keymap.bind(['\a', 27], self.cancel_input, ())
         self.input_keymap.bind(['\n', curses.KEY_ENTER], self.stop_input, ())
-        self._mixer = None
         for mixer in MIXERS:
             try:
                 self._mixer = mixer()
@@ -1671,8 +1650,7 @@ class Application(object):
             APP.status(_("cancel"), 1)
         elif self.stop_input_hook:
             self.stop_input_hook(*args)
-        self.do_input_hook = None
-        self.stop_input_hook = None
+        self.do_input_hook = self.stop_input_hook = None
         self.complete_input_hook = None
 
     def cancel_input(self):
@@ -1694,9 +1672,10 @@ class Application(object):
         while True:
             try:
                 curses.endwin()
-                break
             except Exception:
                 time.sleep(1)
+            else:
+                break
         self.w.refresh()
         self.win_root.resize()
         self.win_root.update()
@@ -1785,14 +1764,15 @@ class AlsaMixer(Mixer):
     def close(self):
         self._mixer.close()
 
+
 class PulseMixer(Mixer):
     def __init__(self):
         self._channels = ['Master']
         self.set(self.get())
 
     def get(self):
-        output, ignored = subprocess.Popen(['pacmd', 'dump-volumes'],
-                shell=False, stdout=subprocess.PIPE).communicate()
+        output = subprocess.Popen(['pacmd', 'dump-volumes'],
+                shell=False, stdout=subprocess.PIPE).communicate()[0]
         return re.search(r'Sink 0.*current_hw.* ([0-9]+)%',
                 output).group(1)
 
@@ -1808,7 +1788,6 @@ def get_tag(pathname):
     if re.compile(r"^http://").match(pathname) or not os.path.exists(pathname):
         return pathname
     tags = {}
-    # FIXME: use magic instead of file extensions to identify OGGs and MP3s
     if re.compile(r".*\.ogg$", re.I).match(pathname):
         try:
             import ogg.vorbis
