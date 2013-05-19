@@ -990,7 +990,7 @@ class PlaylistWindow(TagListWindow):
         try:
             if os.path.isdir(pathname):
                 APP.status(_("Working..."))
-				self.add_dir(os.path.abspath(pathname))
+                self.add_dir(os.path.abspath(pathname))
             elif valid_playlist(pathname):
                 self.add_playlist(pathname)
             else:
