@@ -715,7 +715,7 @@ class FilelistWindow(TagListWindow):
 
     def togglesort(self):
         self.sortdate = not self.sortdate
-        self.listdir()
+        self.listdir(prevdir=self.buffer[self.bufptr].filename)
         APP.status(_("Sort filelist by %s" % (
                 'name', 'modification time')[self.sortdate]), 1)
 
