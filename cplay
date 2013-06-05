@@ -299,7 +299,7 @@ class RootWindow(Window):
     def command_quit(self):
         app.do_input_hook = self.do_quit
         app.start_input(_("Quit? (y/N)"))
-        
+
     def do_quit(self, ch):
         if chr(ch) == 'y': app.quit()
         app.stop_input()
@@ -518,14 +518,15 @@ class HelpWindow(ListWindow):
   ------                               u, U  : untag current/regex
   Up, Down, k, j, C-p, C-n,            Sp, i : invert current/all
   PgUp, PgDn, K, J,                    !, ,  : shell, macro
-  Home, End, g, G : movement
+  Home, End, g, G : movement           %     : delete playing track from filesytem
+                                               and go next
   Enter           : chdir or play      Filelist
   Tab             : filelist/playlist  --------
   n, p            : next/prev track    a     : add (tagged) to playlist
   z, x            : toggle pause/stop  s     : recursive search
                                        BS, o : goto parent/specified dir
   Left, Right,                         m, '  : set/get bookmark
-  C-f, C-b    : seek forward/backward  
+  C-f, C-b    : seek forward/backward
   C-a, C-e    : restart/end track      Playlist
   C-s, C-r, / : isearch                --------
   C-g, Esc    : cancel                 d, D  : delete (tagged) tracks/playlist
@@ -741,7 +742,7 @@ class FilelistWindow(TagListWindow):
     def command_set_bookmark(self):
         app.do_input_hook = self.do_set_bookmark
         app.start_input(_("set bookmark"))
-        
+
     def do_set_bookmark(self, ch):
         app.input_string = ch
         self.bookmarks[ch] = [self.cwd, self.bufptr]
@@ -891,6 +892,7 @@ class PlaylistWindow(TagListWindow):
         self.stop = 0
         self.keymap.bind(['\n', curses.KEY_ENTER],
                          self.command_play, ())
+        self.keymap.bind('%', self.command_remove_from_fs, ())
         self.keymap.bind('d', self.command_delete, ())
         self.keymap.bind('D', self.command_delete_all, ())
         self.keymap.bind('m', self.command_move, (1,))
@@ -953,7 +955,7 @@ class PlaylistWindow(TagListWindow):
         file = open(pathname)
         map(f, map(string.strip, file.readlines()))
         file.close()
-    
+
     def add(self, pathname, quiet=0):
         try:
             if os.path.isdir(pathname):
@@ -1047,6 +1049,20 @@ class PlaylistWindow(TagListWindow):
             self.random_next = self.not_tagged(self.random_next)
             self.random_left = self.not_tagged(self.random_left)
         self.update()
+
+    def command_remove_from_fs(self):
+        """Delete file from filesystem"""
+        entry = self.get_active_entry()
+        if not entry: return
+        self.bufptr = self.buffer.index(entry)
+        if os.path.isfile(entry.pathname):
+            fd = open('/tmp/cplay-mylog.log', "a+")
+            fd.write("%s\n" % entry.pathname)
+            fd.close()
+            os.remove(entry.pathname)
+#        print entry.pathname
+        self.command_delete()
+        app.next_song()
 
     def command_delete_all(self):
         self.buffer = []
