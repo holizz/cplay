@@ -406,7 +406,7 @@ class ListWindow(Window):
                 min(self.scrptr + self.rows, len(self.buffer)),
                 len(self.buffer))
         width = self.cols - len(pos) - 2
-        data = cut(data, width - len(self.name), 1)
+        data = cut(data, width - len(self.name), left=True)
         return "%-*s  %s" % (width, cut(self.name + data, width), pos)
 
     def putstr(self, entry, *pos):
@@ -434,7 +434,7 @@ class ListWindow(Window):
             self.bufptr = random.randint(0, len(self.buffer))
         else:
             self.bufptr = (self.bufptr + ydiff) % len(self.buffer)
-        self.update(force=0)
+        self.update(force=False)
 
     def cursor_ppage(self):
         self.bufptr = self.scrptr - 1
@@ -559,13 +559,13 @@ class PlaylistEntry(ListEntry):
     def __init__(self, pathname):
         ListEntry.__init__(self, pathname)
         self.metadata = None
-        self.active = 0
+        self.active = False
 
     def set_active(self, value):
         self.active = value
 
     def is_active(self):
-        return self.active == 1
+        return self.active
 
     def vp_metadata(self):
         return self.metadata or self.read_metadata()
@@ -595,7 +595,7 @@ class TagListWindow(ListWindow):
             return
         APP.stop_input_hook = self.stop_shell
         APP.complete_input_hook = self.complete_shell
-        APP.start_input(_("shell$ "), colon=0)
+        APP.start_input(_("shell$ "), colon=False)
 
     def stop_shell(self):
         curses.endwin()
@@ -615,9 +615,9 @@ class TagListWindow(ListWindow):
         APP.cursor(0)
 
     def complete_shell(self, line):
-        return self.complete_generic(line, quote=1)
+        return self.complete_generic(line, quote=True)
 
-    def complete_generic(self, line, quote=0):
+    def complete_generic(self, line, quote=False):
         if quote:
             s = re.sub(r'.*[^\\][ \'"()\[\]{}$`]', '', line)
             s, part = re.sub(r'\\', '', s), line[:len(line) - len(s)]
@@ -626,7 +626,7 @@ class TagListWindow(ListWindow):
         results = glob.glob(os.path.expanduser(s) + "*")
         if len(results) == 0:
             return line
-        if len(results) == 1:
+        elif len(results) == 1:
             lm = results[0]
             if os.path.isdir(lm):
                 lm += '/'
@@ -1044,16 +1044,16 @@ class PlaylistWindow(TagListWindow):
                 else:
                     return
             if old:
-                old.set_active(0)
+                old.set_active(False)
         elif old:
             index = self.buffer.index(old) + direction
             if not (0 <= index < len(self.buffer) or self.repeat):
                 return
-            old.set_active(0)
+            old.set_active(False)
             new = self.buffer[index % len(self.buffer)]
         else:
             new = self.buffer[0]
-        new.set_active(1)
+        new.set_active(True)
         self.update()
         return new
 
@@ -1074,9 +1074,9 @@ class PlaylistWindow(TagListWindow):
             return
         entry = self.get_active_entry()
         if entry:
-            entry.set_active(0)
+            entry.set_active(False)
         entry = self.current()
-        entry.set_active(1)
+        entry.set_active(True)
         self.update()
         APP.play(entry)
 
@@ -1133,7 +1133,7 @@ class PlaylistWindow(TagListWindow):
 
     def command_sort(self):
         APP.status(_("Working..."))
-        self.buffer.sort(lambda x, y: x.vp() > y.vp() or -1)
+        self.buffer.sort(key=lambda x: x.vp() or -1)
         self.bufptr = 0
         self.update()
         APP.status(_("Sorted playlist"), 1)
@@ -1237,7 +1237,7 @@ class Player(object):
                 os.waitpid(self.pid, os.WNOHANG)
         except Exception:
             pass
-        self.stopped = 1
+        self.stopped = True
         if not quiet:
             self.update_status()
 
@@ -1438,10 +1438,10 @@ class Application(object):
         self.set_default_status = None
         self.win_status = self.win_root = self.win_tab = None
         self.win_filelist = self.win_playlist = None
-        self.play_tid = self.control = self.kludge = None
+        self.play_tid = self.control = None
         self.tcattr = self.timeout = self.progress = None
         self.player = self._mixer = None
-        self.restricted = False
+        self.kludge = self.restricted = False
         self.input_keymap = Keymap()
         self.input_keymap.bind(list(string.printable), self.do_input)
         self.input_keymap.bind([127, curses.KEY_BACKSPACE],
@@ -1502,7 +1502,7 @@ class Application(object):
         self.player = PLAYERS[0]
         self.timeout = Timeout()
         self.play_tid = None
-        self.kludge = 0
+        self.kludge = False
         self.win_filelist.listdir()
         self.control = FIFOControl()
 
@@ -1530,7 +1530,7 @@ class Application(object):
             if not self.player.stopped:
                 timeout = 0.5
                 if self.kludge and self.player.poll():
-                    self.player.stopped = 1  # end of playlist hack
+                    self.player.stopped = True  # end of playlist hack
                     if not self.win_playlist.stop:
                         entry = self.win_playlist.change_active_entry(1)
                         if entry:
@@ -1542,7 +1542,7 @@ class Application(object):
                 r, w, e = select.select(R, [], [], timeout)
             except select.error:
                 continue
-            self.kludge = 1
+            self.kludge = True
             # user
             if sys.stdin in r:
                 c = self.win_root.getch()
@@ -1558,7 +1558,7 @@ class Application(object):
                 self.control.handle_command()
 
     def play(self, entry, offset=0):
-        self.kludge = 0
+        self.kludge = False
         self.play_tid = None
         if entry is None or offset is None:
             return
@@ -1569,7 +1569,7 @@ class Application(object):
                     break
         else:
             APP.status(_("Player not found!"), 1)
-            self.player.stopped = 0  # keep going
+            self.player.stopped = False  # keep going
             return
         self.player.play()
 
@@ -1614,14 +1614,14 @@ class Application(object):
 
     def show_input(self):
         n = len(self.input_prompt) + 1
-        s = cut(self.input_string, self.win_status.cols - n, left=1)
+        s = cut(self.input_string, self.win_status.cols - n, left=True)
         APP.status("%s%s " % (self.input_prompt, s))
 
-    def start_input(self, prompt="", data="", colon=1):
+    def start_input(self, prompt="", data="", colon=True):
         self.input_mode = 1
         self.cursor(1)
         APP.keymapstack.push(self.input_keymap)
-        self.input_prompt = prompt + (": " if colon else " ")
+        self.input_prompt = prompt + (": " if colon else "")
         self.input_string = data
         self.show_input()
 
@@ -1799,7 +1799,7 @@ def get_tag(pathname):
     elif re.compile(r".*\.mp3$", re.I).match(pathname):
         try:
             import ID3
-            vc = ID3.ID3(pathname, as_tuple=1)
+            vc = ID3.ID3(pathname, as_tuple=True)
             tags = vc.as_dict()
         except Exception:
             return os.path.basename(pathname)
@@ -1877,7 +1877,7 @@ def main():
         APP.setup()
         for opt in dict(opts):
             if opt == "-n":
-                APP.restricted = 1
+                APP.restricted = True
             elif opt == "-r":
                 APP.win_playlist.command_toggle_repeat()
             elif opt == "-R":
