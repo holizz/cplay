@@ -802,7 +802,8 @@ class FilelistWindow(TagListWindow):
         self.mtime_when = now
         self.oldposition[self.cwd] = self.bufptr
         try:
-            self.mtime == os.stat(self.cwd)[8] or self.listdir(quiet=True)
+            if self.mtime != int(os.stat(self.cwd).st_mtime):
+                self.listdir(quiet=True)
         except OSError:
             pass
 
@@ -813,7 +814,7 @@ class FilelistWindow(TagListWindow):
         dirs = []
         files = []
         try:
-            self.mtime = os.stat(self.cwd).st_mtime
+            self.mtime = int(os.stat(self.cwd).st_mtime)
             self.mtime_when = time.time()
             filenames = os.listdir(self.cwd)
             if self.sortdate:
