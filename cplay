@@ -1193,7 +1193,7 @@ class Player(object):
         self.entry = self.time_setup = None
         self.offset = self.step = self.length = 0
         self.buf = ''
-        self.tid = self.argv = self.values = self.pid = None
+        self.tid = self.argv = self.values = self._proc = None
 
     def setup(self, entry, offset):
         self.argv = self.commandline.split()
@@ -1204,6 +1204,7 @@ class Player(object):
             if self.argv[i] == "%d":
                 self.argv[i] = str(offset * self.fps)
         self.entry = entry
+        self.offset = offset
         if offset == 0:
             APP.progress(0)
             self.offset = self.length = 0
@@ -1212,41 +1213,32 @@ class Player(object):
         return self.argv[0]
 
     def play(self):
-        self.pid = os.fork()
-        if self.pid == 0:
-            os.dup2(self.stdin_w, sys.stdin.fileno())
-            os.dup2(self.stdout_w, sys.stdout.fileno())
-            os.dup2(self.stderr_w, sys.stderr.fileno())
-            os.setpgrp()
-            try:
-                os.execv(self.argv[0], self.argv)
-            except OSError:
-                os._exit(1)
+        self._proc = subprocess.Popen(self.argv,
+                stdout=self.stdout_w,
+                stderr=self.stderr_w,
+                stdin=self.stdin_r,
+                shell=False)
         self.stopped = self.paused = False
         self.step = 0
         self.update_status()
 
     def stop(self, quiet=False):
+        if self._proc is None:
+            return
         if self.paused:
             self.toggle_pause(quiet)
         try:
-            while True:
-                try:
-                    os.kill(-self.pid, signal.SIGINT)
-                except OSError:
-                    pass
-                os.waitpid(self.pid, os.WNOHANG)
-        except Exception:
+            self._proc.terminate()
+        except OSError:
             pass
         self.stopped = True
         if not quiet:
             self.update_status()
 
     def toggle_pause(self, quiet=False):
-        try:
-            os.kill(-self.pid, [signal.SIGSTOP, signal.SIGCONT][self.paused])
-        except OSError:
+        if self._proc is None:
             return
+        self._proc.send_signal(signal.SIGCONT if self.paused else signal.SIGSTOP)
         self.paused = not self.paused
         if not quiet:
             self.update_status()
@@ -1267,13 +1259,10 @@ class Player(object):
             self.parse_progress()
 
     def poll(self):
-        try:
-            os.waitpid(self.pid, os.WNOHANG)
-        except Exception:
-            # something broken? try again
-            if self.time_setup and (time.time() - self.time_setup) < 2.0:
-                self.play()
-                return False
+        if self.stopped or self._proc is None:
+            return 0
+        elif self._proc.poll() is not None:
+            self._proc = None
             APP.set_default_status("")
             APP.counter([0, 0])
             APP.progress(0)
@@ -1346,6 +1335,27 @@ class TimeOffsetPlayer(Player):
             self.set_position(head, head + tail, [head, tail])
 
 
+class MPlayer(Player):
+    # e.g.: "A:   3.2 (03.1) of 306.8 (05:06.7)  0.4%"
+    re_progress = re.compile(br"^A:.*?(\d+)\.\d \([^)]+\) of (\d+)\.\d")
+
+    def play(self):
+        Player.play(self)
+        self.mplayer_send("seek %d 2\n" % self.offset)
+
+    def parse_buf(self):
+        match = self.re_progress.search(self.buf)
+        if match:
+            position, length = [int(x) for x in match.groups()]
+            self.set_position(position, length, [position, length])
+
+    def mplayer_send(self, arg):
+        try:
+            os.write(self.stdin_w, arg + "\n")
+        except IOError:
+            APP.status("ERROR: Cannot send commands to mplayer!", 3)
+
+
 class NoOffsetPlayer(Player):
     def parse_buf(self):
         head = self.offset + 1
@@ -1353,18 +1363,6 @@ class NoOffsetPlayer(Player):
 
     def seek(self, *dummy):
         return 1
-
-
-class MPlayer(Player):
-    re_progress = re.compile(
-            r"^A:.*?(\d+)\.\d \([^)]+\) of (\d+)\.\d".encode('ascii'))
-
-    def parse_buf(self):
-        match = self.re_progress.search(self.buf)
-        if match:
-            curS, totS = [int(x) for x in match.groups()]
-            position, length = curS, totS
-            self.set_position(position, length, [position, length])
 
 
 class Timeout(object):
@@ -1922,7 +1920,7 @@ PLAYERS = [
             r"\.(aiff|au|cdr|mp3|ogg|wav)$"),
     NoOffsetPlayer("speexdec %s",
             r"\.spx$"),
-    MPlayer("mplayer -vo null %s",
+    MPlayer("mplayer -slave -vc null -vo null %s",
             r"^http://|\.(mp[123cp+]|ogg|flac|spx|cdr|wav|aiff|ape|m4a|wma"
             r"|mod|xm|fm|s3m|med|col|669|it|mtm|stm|au)$"),
     ]
