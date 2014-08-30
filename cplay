@@ -1241,7 +1241,8 @@ class Player(object):
     def toggle_pause(self, quiet=False):
         if self._proc is None:
             return
-        self._proc.send_signal(signal.SIGCONT if self.paused else signal.SIGSTOP)
+        self._proc.send_signal(signal.SIGCONT if self.paused
+                else signal.SIGSTOP)
         self.paused = not self.paused
         if not quiet:
             self.update_status()
@@ -1540,7 +1541,7 @@ class Application(object):
             if self.control.fd:
                 R.append(self.control.fd)
             try:
-                r, w, e = select.select(R, [], [], timeout)
+                r, _w, _e = select.select(R, [], [], timeout)
             except select.error:
                 continue
             self.kludge = True
@@ -1668,7 +1669,7 @@ class Application(object):
         self.player.stop(quiet=True)
         sys.exit(status)
 
-    def handler_resize(self, sig, frame):
+    def handler_resize(self, _sig, _frame):
         # curses trickery
         while True:
             try:
@@ -1681,7 +1682,7 @@ class Application(object):
         self.win_root.resize()
         self.win_root.update()
 
-    def handler_quit(self, sig, frame):
+    def handler_quit(self, _sig, _frame):
         self.quit(1)
 
 
