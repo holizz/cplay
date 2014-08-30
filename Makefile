@@ -18,4 +18,4 @@ recursive-all recursive-install recursive-clean:
 	done
 
 lint:
-	pylint --indent-string='    ' cplay
+	pylint --indent-string='    ' --disable=missing-docstring,bad-continuation cplay

@@ -25,7 +25,7 @@ import re
 import sys
 import time
 import glob
-import string
+import string  # pylint: disable=deprecated-module
 import random
 import codecs
 import curses
@@ -35,7 +35,7 @@ import select
 import gettext
 import subprocess
 if sys.version[0] < '3':
-    bytes = str  # pylint: disable=W0622,C0103
+    bytes = str  # pylint: disable=redefined-builtin,invalid-name
 
 try:
     import tty
