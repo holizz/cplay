@@ -213,8 +213,9 @@ class StatusWindow(Window):
 class CounterWindow(Window):
     def __init__(self, parent):
         Window.__init__(self, parent)
+        # [seconds elapsed, seconds remaining of current track]
         self.values = [0, 0]
-        self.mode = 1
+        self.mode = 1  # show remaining time
 
     def newwin(self):
         return curses.newwin(1, 11, self.parent.rows - 1,
@@ -230,8 +231,11 @@ class CounterWindow(Window):
         self.touchwin()
         self.refresh()
 
-    def counter(self, values):
-        self.values = values
+    def counter(self, elapsed, remaining):
+        if elapsed >= 0:
+            self.values[0] = elapsed
+        if remaining >= 0:
+            self.values[1] = remaining
         self.update()
 
     def toggle_mode(self):
@@ -1193,7 +1197,7 @@ class Player(object):
         self.entry = self.time_setup = None
         self.offset = self.step = self.length = 0
         self.buf = ''
-        self.tid = self.argv = self.values = self._proc = None
+        self.tid = self.argv = self._proc = None
 
     def setup(self, entry, offset):
         self.argv = self.commandline.split()
@@ -1208,7 +1212,6 @@ class Player(object):
         if offset == 0:
             APP.progress(0)
             self.offset = self.length = 0
-            self.values = [0, 0]
         self.time_setup = time.time()
         return self.argv[0]
 
@@ -1264,7 +1267,7 @@ class Player(object):
         elif self._proc.poll() is not None:
             self._proc = None
             APP.set_default_status("")
-            APP.counter([0, 0])
+            APP.counter(0, 0)
             APP.progress(0)
             return True
 
@@ -1278,14 +1281,13 @@ class Player(object):
             self.offset = self.length + offset if (offset < 0) else offset
         self.show_position()
 
-    def set_position(self, offset, length, values):
+    def set_position(self, offset, length):
         self.offset = offset
         self.length = length
-        self.values = values
         self.show_position()
 
     def show_position(self):
-        APP.counter(self.values)
+        APP.counter(self.offset, self.length - self.offset)
         APP.progress(self.length and (float(self.offset) / self.length))
 
     def update_status(self):
@@ -1308,7 +1310,7 @@ class FrameOffsetPlayer(Player):
         if match:
             m1, s1, m2, s2 = [int(x) for x in match.groups()]
             head, tail = m1 * 60 + s1, m2 * 60 + s2
-            self.set_position(head, head + tail, [head, tail])
+            self.set_position(head, head + tail)
 
 
 class FrameOffsetPlayerMpp(Player):
@@ -1320,7 +1322,7 @@ class FrameOffsetPlayerMpp(Player):
             m1, s1, m2, s2 = [int(x) for x in match.groups()]
             head = m1 * 60 + s1
             tail = (m2 * 60 + s2) - head
-            self.set_position(head, head + tail, [head, tail])
+            self.set_position(head, head + tail)
 
 
 class TimeOffsetPlayer(Player):
@@ -1332,7 +1334,7 @@ class TimeOffsetPlayer(Player):
             h, m, s = [int(x) for x in match.groups()]
             tail = h * 3600 + m * 60 + s
             head = max(self.length, tail) - tail
-            self.set_position(head, head + tail, [head, tail])
+            self.set_position(head, head + tail)
 
 
 class MPlayer(Player):
@@ -1347,7 +1349,7 @@ class MPlayer(Player):
         match = self.re_progress.search(self.buf)
         if match:
             position, length = [int(x) for x in match.groups()]
-            self.set_position(position, length, [position, length])
+            self.set_position(position, length)
 
     def mplayer_send(self, arg):
         try:
@@ -1359,7 +1361,7 @@ class MPlayer(Player):
 class NoOffsetPlayer(Player):
     def parse_buf(self):
         head = self.offset + 1
-        self.set_position(head, 0, [head, head])
+        self.set_position(head, 0)
 
     def seek(self, *dummy):
         return 1
