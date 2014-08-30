@@ -843,8 +843,9 @@ class FilelistWindow(TagListWindow):
         for i in files:
             self.buffer.append(ListEntry(i))
         if prevdir:
-            for self.bufptr in range(len(self.buffer)):
-                if self.buffer[self.bufptr].filename == prevdir:
+            for bufptr in range(len(self.buffer)):
+                if self.buffer[bufptr].filename == prevdir:
+                    self.bufptr = bufptr
                     break
             else:
                 self.bufptr = 0
@@ -971,7 +972,7 @@ class PlaylistWindow(TagListWindow):
         if re.match(r"^(#.*)?$", line):
             return
         if re.match(r"^(/|http://)", line):
-            self.append(PlaylistEntry(self.fix_url(line)))
+            self.append(PlaylistEntry(line))
         else:
             dirname = os.path.dirname(self.pathname)
             self.append(PlaylistEntry(os.path.join(dirname, line)))
@@ -980,7 +981,7 @@ class PlaylistWindow(TagListWindow):
         # todo - support title & length
         m = re.match(r"File(\d + )=(.*)", line)
         if m:
-            self.append(PlaylistEntry(self.fix_url(m.group(2))))
+            self.append(PlaylistEntry(m.group(2)))
 
     def add_playlist(self, pathname):
         self.pathname = pathname
@@ -998,9 +999,10 @@ class PlaylistWindow(TagListWindow):
                 self.add_dir(os.path.abspath(pathname))
             elif valid_playlist(pathname):
                 self.add_playlist(pathname)
-            else:
-                pathname = self.fix_url(pathname)
+            elif valid_song(pathname):
                 self.append(PlaylistEntry(pathname))
+            else:
+                return
             # todo - refactor
             filename = os.path.basename(pathname) or pathname
             if not quiet:
@@ -1008,9 +1010,6 @@ class PlaylistWindow(TagListWindow):
                 APP.status(_("Added: %s") % filename, 1)
         except Exception as e:
             APP.status(e, 2)
-
-    def fix_url(self, url):
-        return re.sub("(http://[^/] + )/?(.*)", "\\1/\\2", url)
 
     def putstr(self, entry, *pos):
         if entry.is_active():
@@ -1565,13 +1564,15 @@ class Application(object):
         if entry is None or offset is None:
             return
         self.player.stop(quiet=True)
-        for self.player in PLAYERS:
-            if self.player.re_files.search(entry.pathname):
-                if self.player.setup(entry, offset):
+        for player in PLAYERS:
+            if player.re_files.search(entry.pathname):
+                if player.setup(entry, offset):
+                    self.player = player
                     break
         else:
             APP.status(_("Player not found!"), 1)
-            self.player.stopped = False  # keep going
+            # will try to play next item in playlist
+            self.player.stopped = False
             return
         self.player.play()
 
