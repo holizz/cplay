@@ -1900,7 +1900,7 @@ def main():
 MIXERS = [OssMixer, AlsaMixer, PulseMixer]
 PLAYERS = [
     FrameOffsetPlayer("ogg123 -q -v -k %d %s",
-            r"\.(ogg|flac|spx)$"),
+            r"\.ogg$"),
     FrameOffsetPlayer("splay -f -k %d %s",
             r"(^http://|\.mp[123]$)", 38.28),
     FrameOffsetPlayer("mpg123 -q -v -k %d %s",
