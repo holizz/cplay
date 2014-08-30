@@ -1313,18 +1313,6 @@ class FrameOffsetPlayer(Player):
             self.set_position(head, head + tail)
 
 
-class FrameOffsetPlayerMpp(Player):
-    re_progress = re.compile(r".*\s(\d+):(\d+).*\s(\d+):(\d+)".encode('ascii'))
-
-    def parse_buf(self):
-        match = self.re_progress.search(self.buf)
-        if match:
-            m1, s1, m2, s2 = [int(x) for x in match.groups()]
-            head = m1 * 60 + s1
-            tail = (m2 * 60 + s2) - head
-            self.set_position(head, head + tail)
-
-
 class TimeOffsetPlayer(Player):
     re_progress = re.compile(r"(\d+):(\d+):(\d+)".encode('ascii'))
 
@@ -1356,6 +1344,19 @@ class MPlayer(Player):
             os.write(self.stdin_w, arg + "\n")
         except IOError:
             APP.status("ERROR: Cannot send commands to mplayer!", 3)
+
+
+class GSTPlayer(Player):
+    re_progress = re.compile(br"Time: (\d+):(\d+):(\d+).\d+"
+            br" of (\d+):(\d+):(\d+).\d+")
+
+    def parse_buf(self):
+        match = self.re_progress.search(self.buf)
+        if match:
+            ph, pm, ps, lh, lm, ls = [int(x) for x in match.groups()]
+            position = ph * 3600 + pm * 60 + ps
+            length = lh * 3600 + lm * 60 + ls
+            self.set_position(position, length)
 
 
 class NoOffsetPlayer(Player):
@@ -1911,10 +1912,13 @@ PLAYERS = [
             r"(^http://|\.mp[123]$)", 38.28),
     FrameOffsetPlayer("mpg321 -q -v -k %d %s",
             r"(^http://|\.mp[123]$)", 38.28),
-    FrameOffsetPlayerMpp("mppdec --gain 2 --start %d %s",
-            r"\.mp[cp+]$"),
     TimeOffsetPlayer("madplay -v --display-time=remaining -s %d %s",
             r"\.mp[123]$"),
+    MPlayer("mplayer -slave -vc null -vo null %s",
+            r"^http://|\.(mp[123cp+]|ogg|flac|spx|cdr|wav|aiff|ape|m4a|wma"
+            r"|mod|xm|fm|s3m|med|col|669|it|mtm|stm|au)$"),
+    GSTPlayer("gst123 -k %d %s",
+            r"\.(mp[123]|ogg|opus|oga|flac|wav|m4a|m4b|aiff)$"),
     NoOffsetPlayer("mikmod -q -p0 %s",
             r"\.(mod|xm|fm|s3m|med|col|669|it|mtm)$"),
     NoOffsetPlayer("xmp -q %s",
@@ -1923,9 +1927,6 @@ PLAYERS = [
             r"\.(aiff|au|cdr|mp3|ogg|wav)$"),
     NoOffsetPlayer("speexdec %s",
             r"\.spx$"),
-    MPlayer("mplayer -slave -vc null -vo null %s",
-            r"^http://|\.(mp[123cp+]|ogg|flac|spx|cdr|wav|aiff|ape|m4a|wma"
-            r"|mod|xm|fm|s3m|med|col|669|it|mtm|stm|au)$"),
     ]
 
 if __name__ == "__main__":
