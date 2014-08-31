@@ -1,13 +1,13 @@
 Description
 -----------
-cplay is a minimalist music player with a textual user interface
+`cplay` is a minimalist music player with a textual user interface
 written in Python. It aims to provide a power-user-friendly interface
 with simple filelist and playlist control.
 
 Dependencies
 ------------
 
-- python 2.6+         http://www.python.org/
+- Python 2.6+         http://www.python.org/
 
 Music players supported (one of the first two provides support for most formats):
 
@@ -33,28 +33,28 @@ Other optional components:
 
 Installation
 ------------
-
+```
 $ make install
-
+```
 Usage
 -----
-
+```
 $ cplay [-nrRv] [ file | dir | playlist ] ...
-
-When in doubt, press 'h' for a friendly help page.
+```
+When in doubt, press `h` for a friendly help page.
 
 Configuration
 -------------
 If you would like to change options passed to the actual players
-just edit the PLAYERS list in the cplay script.
+just edit the `PLAYERS` list at the end of the cplay script.
 
 Miscellaneous
 -------------
 A playlist can contain URLs, but the playlist itself will
-have to be local. For mpeg streaming, splay is recommended.
+have to be local. For mpeg streaming, `splay` is recommended.
 
-It is also possible to pipe a playlist to cplay, as stdin
+It is also possible to pipe a playlist to `cplay`, as stdin
 will be reopened on startup unless it is attached to a tty.
 
-Remote control via /tmp/cplay-control-$USER; see lircrc.
+Remote control via `/tmp/cplay-control-$USER`; see `lircrc`.
 
