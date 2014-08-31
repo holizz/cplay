@@ -1888,7 +1888,7 @@ PLAYERS = [
     MPlayer("mplayer -slave -vc null -vo null %s",
             r"^http://|\.(mp[123cp+]|ogg|flac|spx|cdr|wav|aiff|ape|m4a|wma"
             r"|mod|xm|fm|s3m|med|col|669|it|mtm|stm|au)$"),
-    GSTPlayer("gst123 -k %d %s",
+    GSTPlayer("gst123 -x -k %d %s",
             r"\.(mp[123]|ogg|opus|oga|flac|wav|m4a|m4b|aiff)$"),
     NoOffsetPlayer("mikmod -q -p0 %s",
             r"\.(mod|xm|fm|s3m|med|col|669|it|mtm)$"),
