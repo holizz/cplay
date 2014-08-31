@@ -27,7 +27,6 @@ import time
 import glob
 import string  # pylint: disable=deprecated-module
 import random
-import codecs
 import curses
 import getopt
 import signal
@@ -58,6 +57,11 @@ CONTROL_FIFO = "%s/cplay-control-%s" % (
         os.environ.get("TMPDIR", "/tmp"), os.environ["USER"])
 MACRO = {}
 APP = None
+USAGE = _("""Usage: %s [-nrRv] [ file | dir | playlist ] ...
+  -n Enable restricted mode
+  -r Toggles playlist repeat mode
+  -R Toggles playlist random mode
+  -v Toggles PCM and MASTER (default) volume control\n""")
 
 
 class Stack(object):
@@ -616,7 +620,7 @@ class TagListWindow(ListWindow):
         sys.stdin.readline()
         APP.win_root.update()
         APP.restore_default_status()
-        APP.cursor(0)
+        cursor(0)
 
     def complete_shell(self, line):
         return self.complete_generic(line, quote=True)
@@ -1410,13 +1414,13 @@ class FIFOControl(object):
             if os.path.exists(CONTROL_FIFO):
                 os.unlink(CONTROL_FIFO)
             os.mkfifo(CONTROL_FIFO, 0o600)
-            self.fd = open(CONTROL_FIFO, "rb+", 0)
+            self.fd = open(CONTROL_FIFO, "r+b", 0)
         except IOError:
             # warn that we're disabling the fifo because someone raced us?
             return
 
     def handle_command(self):
-        argv = self.fd.readline().strip().split(" ", 1)
+        argv = self.fd.readline().strip().split(None, 1)
         if argv[0] in self.commands:
             f, a = self.commands[argv[0]]
             if a is None:
@@ -1484,7 +1488,7 @@ class Application(object):
             curses.meta(1)
         except Exception:
             pass
-        self.cursor(0)
+        cursor(0)
         signal.signal(signal.SIGCHLD, signal.SIG_IGN)
         signal.signal(signal.SIGHUP, self.handler_quit)
         signal.signal(signal.SIGINT, self.handler_quit)
@@ -1623,7 +1627,7 @@ class Application(object):
 
     def start_input(self, prompt="", data="", colon=True):
         self.input_mode = 1
-        self.cursor(1)
+        cursor(1)
         APP.keymapstack.push(self.input_keymap)
         self.input_prompt = prompt + (": " if colon else "")
         self.input_string = data
@@ -1648,7 +1652,7 @@ class Application(object):
 
     def stop_input(self, *args):
         self.input_mode = 0
-        self.cursor(0)
+        cursor(0)
         APP.keymapstack.pop()
         if not self.input_string:
             APP.status(_("cancel"), 1)
@@ -1660,12 +1664,6 @@ class Application(object):
     def cancel_input(self):
         self.input_string = ""
         self.stop_input()
-
-    def cursor(self, visibility):
-        try:
-            curses.curs_set(visibility)
-        except Exception:
-            pass
 
     def quit(self, status=0):
         self.player.stop(quiet=True)
@@ -1718,20 +1716,11 @@ class Mixer(object):
 
 class OssMixer(Mixer):
     def __init__(self):
-        ossaudiodev = True
-        try:
-            import ossaudiodev as oss
-        except ImportError:
-            import oss
-            ossaudiodev = False
-        self._mixer = oss.openmixer()
-        if ossaudiodev:
-            self._get, self._set = self._mixer.get, self._mixer.set
-        else:
-            self._get = self._mixer.read_channel
-            self._set = self._mixer.write_channel
-        self._channels = [['PCM', oss.SOUND_MIXER_PCM],
-                    ['MASTER', oss.SOUND_MIXER_VOLUME]]
+        import ossaudiodev
+        self._mixer = ossaudiodev.openmixer()
+        self._get, self._set = self._mixer.get, self._mixer.set
+        self._channels = [['PCM', ossaudiodev.SOUND_MIXER_PCM],
+                    ['Master', ossaudiodev.SOUND_MIXER_VOLUME]]
         self.toggle()
 
     def get(self):
@@ -1836,16 +1825,18 @@ def filter_unicode(s):
                 sys.getfilesystemencoding())
 
 
+def cursor(visibility):
+    try:
+        curses.curs_set(visibility)
+    except Exception:
+        pass
+
+
 def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], "nrRv")
     except getopt.GetoptError:
-        usage = _("""Usage: %s [-nrRv] [ file | dir | playlist ] ...
-  -n Enable restricted mode
-  -r Toggles playlist repeat mode
-  -R Toggles playlist random mode
-  -v Toggles PCM and MASTER (default) volume control\n""")
-        sys.stderr.write(usage % os.path.basename(sys.argv[0]))
+        sys.stderr.write(USAGE % os.path.basename(sys.argv[0]))
         sys.exit(1)
 
     global APP
