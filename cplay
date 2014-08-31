@@ -1790,39 +1790,19 @@ class PulseMixer(Mixer):
 def get_tag(pathname):
     if re.compile(r"^http://").match(pathname) or not os.path.exists(pathname):
         return pathname
-    tags = {}
-    if re.compile(r".*\.ogg$", re.I).match(pathname):
-        try:
-            import ogg.vorbis
-            vf = ogg.vorbis.VorbisFile(pathname)
-            vc = vf.comment()
-            tags = vc.as_dict()
-        except Exception:
-            return os.path.basename(pathname)
-    elif re.compile(r".*\.mp3$", re.I).match(pathname):
-        try:
-            import ID3
-            vc = ID3.ID3(pathname, as_tuple=True)
-            tags = vc.as_dict()
-        except Exception:
-            return os.path.basename(pathname)
-    else:
-        return os.path.basename(pathname)
-
-    artist = tags.get("ARTIST", [""])[0]
-    title = tags.get("TITLE", [""])[0]
-    tag = os.path.basename(pathname)
+    result = None
     try:
-        if artist and title:
-            tag = " - ".join((codecs.latin_1_encode(artist)[0],
-                    codecs.latin_1_encode(title)[0]))
-        elif artist:
-            tag = artist
-        elif title:
-            tag = title
-        return codecs.latin_1_encode(tag)[0]
+        import mutagen
+        metadata = mutagen.File(pathname, easy=True)
     except Exception:
-        return tag
+        return os.path.basename(pathname)
+    if metadata:
+        tags = [metadata.get('tracknumber'),
+                metadata.get('artist'),
+                metadata.get('title', metadata.get('album'))]
+        result = ' - '.join(str(tag[0]) for tag in tags if tag and tag[0])
+        result = result.encode(sys.getfilesystemencoding())
+    return result or os.path.basename(pathname)
 
 
 def valid_song(name):

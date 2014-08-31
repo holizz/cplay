@@ -14,9 +14,6 @@ x - browse bookmarks?
 x - index-mode: group/sort/search by ctime, filename, metadata, etc.
 x - screen title patch
 x - tree view patch: expand 2 or more dirs mode for filelist?
-4 - don't require both ID3 and pyogg for one of them to work
-    - how to enable the metadata viewpoint?
-x - get_tag() is messy
 5 - don't try to write m3u to search results path
 x - search results mode vs path
 x - shell from playlist? (requires new tab-completion?)

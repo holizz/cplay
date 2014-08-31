@@ -10,11 +10,12 @@ Requirement:
 
 Music players supported:
 
-        - mpg321                  http://sourceforge.net/projects/mpg321/
-        - ogg123                  http://www.vorbis.com/
-        - mpg123                  http://www.mpg123.org/
         - mplayer                 http://www.mplayerhq.hu/
+        - gst123                  http://space.twc.de/~stefan/gst123.php
+        - mpg321                  http://sourceforge.net/projects/mpg321/
+        - mpg123                  http://www.mpg123.org/
         - madplay                 http://www.mars.org/home/rob/proj/mpeg/
+        - ogg123                  http://www.vorbis.com/
         - splay                   http://splay.sourceforge.net/
         - mikmod                  http://www.mikmod.org/
         - xmp                     http://xmp.sf.net/
@@ -23,8 +24,7 @@ Music players supported:
 
 Other optional components:
 
-        - ID3-py                  http://id3-py.sourceforge.net/
-        - pyvorbis                http://www.duke.edu/~ahc4/pyogg/
+        - mutagen                 https://bitbucket.org/lazka/mutagen
 
 Installation:
 
