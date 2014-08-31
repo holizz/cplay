@@ -25,11 +25,8 @@ $mandir=${prefix}/man/man1
 %system all
 f 0555 root sys ${bindir}/cplay cplay
 # Doc
-f 0444 root sys ${docdir}/README README
+f 0444 root sys ${docdir}/README.md README.md
 f 0444 root sys ${docdir}/TODO TODO
 
-# Man pages
+# Man page
 f 0444 root sys ${mandir}/cplay.${MAN1EXT} cplay.1
-
-#Configuration
-f 0644 root sys ${confdir}/cplayrc cplayrc

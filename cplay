@@ -1789,7 +1789,7 @@ def get_tag(pathname):
         tags = [metadata.get('tracknumber'),
                 metadata.get('artist'),
                 metadata.get('title', metadata.get('album'))]
-        result = ' - '.join(str(tag[0]) for tag in tags if tag and tag[0])
+        result = ' - '.join(tag[0] for tag in tags if tag and tag[0])
         result = result.encode(sys.getfilesystemencoding())
     return result or os.path.basename(pathname)
 
