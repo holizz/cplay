@@ -922,7 +922,7 @@ class FilelistWindow(TagListWindow):
 class PlaylistWindow(TagListWindow):
     def __init__(self, parent):
         TagListWindow.__init__(self, parent)
-        self.pathname = None
+        self.pathname = self.active_entry = None
         self.repeat = self.random = self.stop = False
         self.random_prev = []
         self.random_next = []
@@ -1065,13 +1065,12 @@ class PlaylistWindow(TagListWindow):
         else:
             new = self.buffer[0]
         new.set_active(True)
+        self.active_entry = new
         self.update()
         return new
 
     def get_active_entry(self):
-        for entry in self.buffer:
-            if entry.is_active():
-                return entry
+        return self.active_entry
 
     def command_jump_to_active(self):
         entry = self.get_active_entry()
