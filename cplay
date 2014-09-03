@@ -39,7 +39,7 @@ if sys.version[0] < '3':
 try:
     import tty
 except ImportError:
-    tty = None
+    tty = None  # pylint: disable=invalid-name
 
 try:
     import locale
@@ -686,8 +686,8 @@ class TagListWindow(ListWindow):
                     entry.set_tagged(self.tag_value)
             self.update()
             APP.status(_("ok"), 1)
-        except re.error as e:
-            APP.status(e, 2)
+        except re.error as err:
+            APP.status(err, 2)
 
     def get_tagged(self):
         return [x for x in self.buffer if x.is_tagged()]
@@ -765,8 +765,8 @@ class FilelistWindow(TagListWindow):
     def stop_search_recursively(self):
         try:
             re_tmp = re.compile(APP.input_string, re.I)
-        except re.error as e:
-            APP.status(e, 2)
+        except re.error as err:
+            APP.status(err, 2)
             return
         APP.status(_("Searching..."))
         results = []
@@ -969,8 +969,8 @@ class PlaylistWindow(TagListWindow):
                     subdirs.append(pathname)
             for subdir in subdirs:
                 self.add_dir(subdir)
-        except Exception as e:
-            APP.status(e, 2)
+        except Exception as err:
+            APP.status(err, 2)
 
     def add_m3u(self, line):
         if re.match(r"^(#.*)?$", line):
@@ -1012,8 +1012,8 @@ class PlaylistWindow(TagListWindow):
             if not quiet:
                 self.update()
                 APP.status(_("Added: %s") % filename, 1)
-        except Exception as e:
-            APP.status(e, 2)
+        except Exception as err:
+            APP.status(err, 2)
 
     def putstr(self, entry, *pos):
         if entry.is_active():
@@ -1184,8 +1184,8 @@ class PlaylistWindow(TagListWindow):
                 out.writelines("%s\n" % item.pathname for item in self.buffer)
             self.pathname = pathname
             APP.status(_("ok"), 1)
-        except IOError as e:
-            APP.status(e, 2)
+        except IOError as err:
+            APP.status(err, 2)
 
 
 class Player(object):
@@ -1208,7 +1208,7 @@ class Player(object):
         for i in range(len(self.argv)):
             if self.argv[i] == "%s":
                 self.argv[i] = entry.pathname
-            if self.argv[i] == "%d":
+            elif self.argv[i] == "%d":
                 self.argv[i] = str(offset * self.fps)
         self.entry = entry
         self.offset = offset
@@ -1235,7 +1235,8 @@ class Player(object):
             self.toggle_pause(quiet)
         try:
             self._proc.terminate()
-        except OSError:
+        except OSError as err:
+            APP.status(err, 2)
             pass
         self.stopped = True
         if not quiet:
@@ -1522,8 +1523,7 @@ class Application(object):
         if tty:
             tty.tcsetattr(sys.stdin.fileno(), tty.TCSADRAIN, self.tcattr)
         sys.stdout.write('\n')
-        # remove temporary files
-        try:
+        try:  # remove temporary files
             os.unlink(CONTROL_FIFO)
         except (IOError, OSError):
             pass
