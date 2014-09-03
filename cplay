@@ -1221,14 +1221,20 @@ class Player(object):
         return self.argv[0]
 
     def play(self):
-        self._proc = subprocess.Popen(self.argv,
-                stdout=self.stdout_w,
-                stderr=self.stderr_w,
-                stdin=self.stdin_r,
-                shell=False)
+        try:
+            self._proc = subprocess.Popen(
+                    self.argv,
+                    stdout=self.stdout_w,
+                    stderr=self.stderr_w,
+                    stdin=self.stdin_r,
+                    shell=False)
+        except OSError as err:
+            APP.status(err, 2)
+            return False
         self.stopped = self.paused = False
         self.step = 0
         self.update_status()
+        return True
 
     def stop(self, quiet=False):
         if self._proc is None:
