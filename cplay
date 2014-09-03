@@ -940,6 +940,9 @@ class PlaylistWindow(TagListWindow):
         self.keymap.bind('X', self.command_toggle_stop, ())
         self.keymap.bind('w', self.command_save_playlist, ())
         self.keymap.bind('@', self.command_jump_to_active, ())
+        self.keymap.bind(['.', 127, curses.KEY_BACKSPACE],
+                lambda: (APP.win_tab.change_window()
+                    or APP.win_filelist.command_chparentdir()), ())
 
     def command_change_viewpoint(self, cls=PlaylistEntry):
         TagListWindow.command_change_viewpoint(self, cls)
