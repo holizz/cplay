@@ -1087,6 +1087,7 @@ class PlaylistWindow(TagListWindow):
             entry.set_active(False)
         entry = self.current()
         entry.set_active(True)
+        self.active_entry = entry
         self.update()
         APP.play(entry)
 
@@ -1114,6 +1115,7 @@ class PlaylistWindow(TagListWindow):
         self.random_prev = []
         self.random_next = []
         self.random_left = []
+        self.active_entry = None
         APP.status(_("Deleted playlist"), 1)
         self.update()
 
