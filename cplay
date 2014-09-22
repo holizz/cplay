@@ -64,45 +64,257 @@ USAGE = _("""Usage: %s [-nrRv] [ file | dir | playlist ] ...
   -v Toggles PCM and MASTER (default) volume control\n""")
 
 
-class Stack(object):
+class Application(object):
     def __init__(self):
-        self.items = []
-
-    def push(self, item):
-        self.items.append(item)
-
-    def pop(self):
-        return self.items.pop()
-
-
-class KeymapStack(Stack):
-    def process(self, code):
-        for keymap in reversed(self.items):
-            if keymap and keymap.process(code):
+        self.keymapstack = KeymapStack()
+        self.input_mode = 0
+        self.input_prompt = ""
+        self.input_string = ""
+        self.do_input_hook = self.stop_input_hook = None
+        self.complete_input_hook = self.restore_default_status = None
+        self.w = self.status = self.counter = None
+        self.set_default_status = None
+        self.win_status = self.win_root = self.win_tab = None
+        self.win_filelist = self.win_playlist = None
+        self.play_tid = self.control = None
+        self.tcattr = self.timeout = self.progress = None
+        self.player = self._mixer = None
+        self.kludge = self.restricted = False
+        self.input_keymap = Keymap()
+        self.input_keymap.bind(list(string.printable), self.do_input)
+        self.input_keymap.bind([127, curses.KEY_BACKSPACE],
+                self.do_input, (8, ))
+        self.input_keymap.bind([21, 23], self.do_input)
+        self.input_keymap.bind(['\a', 27], self.cancel_input, ())
+        self.input_keymap.bind(['\n', curses.KEY_ENTER], self.stop_input, ())
+        for mixer in MIXERS:
+            try:
+                self._mixer = mixer()
+            except Exception:
+                pass
+            else:
                 break
 
+    def command_macro(self):
+        APP.do_input_hook = self.do_macro
+        APP.start_input(_("macro"))
 
-class Keymap(object):
-    def __init__(self):
-        self.methods = [None] * curses.KEY_MAX
+    def do_macro(self, ch):
+        APP.stop_input()
+        self.run_macro(chr(ch))
 
-    def bind(self, key, method, args=None):
-        if isinstance(key, (tuple, list)):
-            for i in key:
-                self.bind(i, method, args)
+    def run_macro(self, c):
+        for i in MACRO.get(c, ""):
+            self.keymapstack.process(ord(i))
+
+    def setup(self):
+        if tty:
+            self.tcattr = tty.tcgetattr(sys.stdin.fileno())
+            tcattr = tty.tcgetattr(sys.stdin.fileno())
+            tcattr[0] = tcattr[0] & ~(tty.IXON)
+            tty.tcsetattr(sys.stdin.fileno(), tty.TCSANOW, tcattr)
+        self.w = curses.initscr()
+        curses.cbreak()
+        curses.noecho()
+        try:
+            curses.meta(1)
+        except Exception:
+            pass
+        cursor(0)
+        signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+        signal.signal(signal.SIGHUP, self.handler_quit)
+        signal.signal(signal.SIGINT, self.handler_quit)
+        signal.signal(signal.SIGTERM, self.handler_quit)
+        signal.signal(signal.SIGWINCH, self.handler_resize)
+        self.win_root = RootWindow(None)
+        self.win_root.update()
+        self.win_tab = self.win_root.win_tab
+        self.win_filelist = self.win_root.win_tab.win_filelist
+        self.win_playlist = self.win_root.win_tab.win_playlist
+        self.win_status = self.win_root.win_status
+        self.status = self.win_status.status
+        self.set_default_status = self.win_status.set_default_status
+        self.restore_default_status = self.win_status.restore_default_status
+        self.counter = self.win_root.win_counter.counter
+        self.progress = self.win_root.win_progress.progress
+        self.player = PLAYERS[0]
+        self.timeout = Timeout()
+        self.play_tid = None
+        self.kludge = False
+        self.win_filelist.listdir()
+        self.control = FIFOControl()
+
+    def cleanup(self):
+        try:
+            curses.endwin()
+        except curses.error:
             return
-        if isinstance(key, (str, bytes)):
-            key = ord(key)
-        self.methods[key] = (method, args)
+        if XTERM:
+            sys.stderr.write("\033]0;%s\a" % "xterm")
+        if tty:
+            tty.tcsetattr(sys.stdin.fileno(), tty.TCSADRAIN, self.tcattr)
+        sys.stdout.write('\n')
+        try:  # remove temporary files
+            os.unlink(CONTROL_FIFO)
+        except (IOError, OSError):
+            pass
 
-    def process(self, key):
-        if self.methods[key] is None:
-            return False
-        method, args = self.methods[key]
-        if args is None:
-            args = (key, )
-        method(*args)
-        return True
+    def run(self):
+        while True:
+            now = time.time()
+            timeout = self.timeout.check(now)
+            self.win_filelist.listdir_maybe(now)
+            if not self.player.stopped:
+                timeout = 0.5
+                if self.kludge and self.player.poll():
+                    self.player.stopped = True  # end of playlist hack
+                    if not self.win_playlist.stop:
+                        entry = self.win_playlist.change_active_entry(1)
+                        if entry:
+                            self.play(entry)
+            R = [sys.stdin, self.player.stdout_r, self.player.stderr_r]
+            if self.control.fd:
+                R.append(self.control.fd)
+            try:
+                r, _w, _e = select.select(R, [], [], timeout)
+            except select.error:
+                continue
+            self.kludge = True
+            # user
+            if sys.stdin in r:
+                c = self.win_root.getch()
+                self.keymapstack.process(c)
+            # player
+            if self.player.stderr_r in r:
+                self.player.read_fd(self.player.stderr_r)
+            # player
+            if self.player.stdout_r in r:
+                self.player.read_fd(self.player.stdout_r)
+            # remote
+            if self.control.fd in r:
+                self.control.handle_command()
+
+    def play(self, entry, offset=0):
+        self.kludge = False
+        self.play_tid = None
+        if entry is None or offset is None:
+            return
+        self.player.stop(quiet=True)
+        for player in PLAYERS:
+            if player.re_files.search(entry.pathname):
+                if player.setup(entry, offset):
+                    self.player = player
+                    break
+        else:
+            APP.status(_("Player not found!"), 1)
+            # will try to play next item in playlist
+            self.player.stopped = False
+            return
+        self.player.play()
+
+    def delayed_play(self, entry, offset):
+        if self.play_tid:
+            self.timeout.remove(self.play_tid)
+        self.play_tid = self.timeout.add(0.5, self.play, (entry, offset))
+
+    def next_song(self):
+        self.delayed_play(self.win_playlist.change_active_entry(1), 0)
+
+    def prev_song(self):
+        self.delayed_play(self.win_playlist.change_active_entry(-1), 0)
+
+    def seek(self, offset, relative):
+        if not self.player.entry:
+            return
+        self.player.seek(offset, relative)
+        self.delayed_play(self.player.entry, self.player.offset)
+
+    def toggle_pause(self):
+        if not self.player.entry:
+            return
+        if not self.player.stopped:
+            self.player.toggle_pause()
+
+    def toggle_stop(self):
+        if not self.player.entry:
+            return
+        if not self.player.stopped:
+            self.player.stop()
+        else:
+            self.play(self.player.entry, self.player.offset)
+
+    def key_volume(self, ch):
+        self.mixer('set', (ch - ord('0')) * 10)
+
+    def mixer(self, cmd, *args):
+        if self._mixer is not None:
+            getattr(self._mixer, cmd)(*args)
+        APP.status(self._mixer or _("No mixer."), 1)
+
+    def show_input(self):
+        n = len(self.input_prompt) + 1
+        s = cut(self.input_string, self.win_status.cols - n, left=True)
+        APP.status("%s%s " % (self.input_prompt, s))
+
+    def start_input(self, prompt="", data="", colon=True):
+        self.input_mode = 1
+        cursor(1)
+        APP.keymapstack.push(self.input_keymap)
+        self.input_prompt = prompt + (": " if colon else "")
+        self.input_string = data
+        self.show_input()
+
+    def do_input(self, *args):
+        if self.do_input_hook:
+            return self.do_input_hook(*args)
+        ch = args[0] if args else None
+        if ch in [8, 127]:  # backspace
+            self.input_string = self.input_string[:-1]
+        elif ch == 9 and self.complete_input_hook:
+            self.input_string = self.complete_input_hook(self.input_string)
+        elif ch == 21:  # C-u
+            self.input_string = ""
+        elif ch == 23:  # C-w
+            self.input_string = re.sub(r"((.* )?)\w.*", r"\1",
+                    self.input_string)
+        elif ch:
+            self.input_string = "%s%c" % (self.input_string, ch)
+        self.show_input()
+
+    def stop_input(self, *args):
+        self.input_mode = 0
+        cursor(0)
+        APP.keymapstack.pop()
+        if not self.input_string:
+            APP.status(_("cancel"), 1)
+        elif self.stop_input_hook:
+            self.stop_input_hook(*args)
+        self.do_input_hook = self.stop_input_hook = None
+        self.complete_input_hook = None
+
+    def cancel_input(self):
+        self.input_string = ""
+        self.stop_input()
+
+    def quit(self, status=0):
+        self.player.stop(quiet=True)
+        sys.exit(status)
+
+    def handler_resize(self, _sig, _frame):
+        # curses trickery
+        while True:
+            try:
+                curses.endwin()
+            except Exception:
+                time.sleep(1)
+            else:
+                break
+        self.w.refresh()
+        self.win_root.resize()
+        self.win_root.update()
+
+    def handler_quit(self, _sig, _frame):
+        self.quit(1)
 
 
 class Window(object):
@@ -1443,259 +1655,6 @@ class FIFOControl(object):
         APP.mixer(argv[0], int(argv[1]))
 
 
-class Application(object):
-    def __init__(self):
-        self.keymapstack = KeymapStack()
-        self.input_mode = 0
-        self.input_prompt = ""
-        self.input_string = ""
-        self.do_input_hook = self.stop_input_hook = None
-        self.complete_input_hook = self.restore_default_status = None
-        self.w = self.status = self.counter = None
-        self.set_default_status = None
-        self.win_status = self.win_root = self.win_tab = None
-        self.win_filelist = self.win_playlist = None
-        self.play_tid = self.control = None
-        self.tcattr = self.timeout = self.progress = None
-        self.player = self._mixer = None
-        self.kludge = self.restricted = False
-        self.input_keymap = Keymap()
-        self.input_keymap.bind(list(string.printable), self.do_input)
-        self.input_keymap.bind([127, curses.KEY_BACKSPACE],
-                self.do_input, (8, ))
-        self.input_keymap.bind([21, 23], self.do_input)
-        self.input_keymap.bind(['\a', 27], self.cancel_input, ())
-        self.input_keymap.bind(['\n', curses.KEY_ENTER], self.stop_input, ())
-        for mixer in MIXERS:
-            try:
-                self._mixer = mixer()
-            except Exception:
-                pass
-            else:
-                break
-
-    def command_macro(self):
-        APP.do_input_hook = self.do_macro
-        APP.start_input(_("macro"))
-
-    def do_macro(self, ch):
-        APP.stop_input()
-        self.run_macro(chr(ch))
-
-    def run_macro(self, c):
-        for i in MACRO.get(c, ""):
-            self.keymapstack.process(ord(i))
-
-    def setup(self):
-        if tty:
-            self.tcattr = tty.tcgetattr(sys.stdin.fileno())
-            tcattr = tty.tcgetattr(sys.stdin.fileno())
-            tcattr[0] = tcattr[0] & ~(tty.IXON)
-            tty.tcsetattr(sys.stdin.fileno(), tty.TCSANOW, tcattr)
-        self.w = curses.initscr()
-        curses.cbreak()
-        curses.noecho()
-        try:
-            curses.meta(1)
-        except Exception:
-            pass
-        cursor(0)
-        signal.signal(signal.SIGCHLD, signal.SIG_IGN)
-        signal.signal(signal.SIGHUP, self.handler_quit)
-        signal.signal(signal.SIGINT, self.handler_quit)
-        signal.signal(signal.SIGTERM, self.handler_quit)
-        signal.signal(signal.SIGWINCH, self.handler_resize)
-        self.win_root = RootWindow(None)
-        self.win_root.update()
-        self.win_tab = self.win_root.win_tab
-        self.win_filelist = self.win_root.win_tab.win_filelist
-        self.win_playlist = self.win_root.win_tab.win_playlist
-        self.win_status = self.win_root.win_status
-        self.status = self.win_status.status
-        self.set_default_status = self.win_status.set_default_status
-        self.restore_default_status = self.win_status.restore_default_status
-        self.counter = self.win_root.win_counter.counter
-        self.progress = self.win_root.win_progress.progress
-        self.player = PLAYERS[0]
-        self.timeout = Timeout()
-        self.play_tid = None
-        self.kludge = False
-        self.win_filelist.listdir()
-        self.control = FIFOControl()
-
-    def cleanup(self):
-        try:
-            curses.endwin()
-        except curses.error:
-            return
-        if XTERM:
-            sys.stderr.write("\033]0;%s\a" % "xterm")
-        if tty:
-            tty.tcsetattr(sys.stdin.fileno(), tty.TCSADRAIN, self.tcattr)
-        sys.stdout.write('\n')
-        try:  # remove temporary files
-            os.unlink(CONTROL_FIFO)
-        except (IOError, OSError):
-            pass
-
-    def run(self):
-        while True:
-            now = time.time()
-            timeout = self.timeout.check(now)
-            self.win_filelist.listdir_maybe(now)
-            if not self.player.stopped:
-                timeout = 0.5
-                if self.kludge and self.player.poll():
-                    self.player.stopped = True  # end of playlist hack
-                    if not self.win_playlist.stop:
-                        entry = self.win_playlist.change_active_entry(1)
-                        if entry:
-                            self.play(entry)
-            R = [sys.stdin, self.player.stdout_r, self.player.stderr_r]
-            if self.control.fd:
-                R.append(self.control.fd)
-            try:
-                r, _w, _e = select.select(R, [], [], timeout)
-            except select.error:
-                continue
-            self.kludge = True
-            # user
-            if sys.stdin in r:
-                c = self.win_root.getch()
-                self.keymapstack.process(c)
-            # player
-            if self.player.stderr_r in r:
-                self.player.read_fd(self.player.stderr_r)
-            # player
-            if self.player.stdout_r in r:
-                self.player.read_fd(self.player.stdout_r)
-            # remote
-            if self.control.fd in r:
-                self.control.handle_command()
-
-    def play(self, entry, offset=0):
-        self.kludge = False
-        self.play_tid = None
-        if entry is None or offset is None:
-            return
-        self.player.stop(quiet=True)
-        for player in PLAYERS:
-            if player.re_files.search(entry.pathname):
-                if player.setup(entry, offset):
-                    self.player = player
-                    break
-        else:
-            APP.status(_("Player not found!"), 1)
-            # will try to play next item in playlist
-            self.player.stopped = False
-            return
-        self.player.play()
-
-    def delayed_play(self, entry, offset):
-        if self.play_tid:
-            self.timeout.remove(self.play_tid)
-        self.play_tid = self.timeout.add(0.5, self.play, (entry, offset))
-
-    def next_song(self):
-        self.delayed_play(self.win_playlist.change_active_entry(1), 0)
-
-    def prev_song(self):
-        self.delayed_play(self.win_playlist.change_active_entry(-1), 0)
-
-    def seek(self, offset, relative):
-        if not self.player.entry:
-            return
-        self.player.seek(offset, relative)
-        self.delayed_play(self.player.entry, self.player.offset)
-
-    def toggle_pause(self):
-        if not self.player.entry:
-            return
-        if not self.player.stopped:
-            self.player.toggle_pause()
-
-    def toggle_stop(self):
-        if not self.player.entry:
-            return
-        if not self.player.stopped:
-            self.player.stop()
-        else:
-            self.play(self.player.entry, self.player.offset)
-
-    def key_volume(self, ch):
-        self.mixer('set', (ch - ord('0')) * 10)
-
-    def mixer(self, cmd, *args):
-        if self._mixer is not None:
-            getattr(self._mixer, cmd)(*args)
-        APP.status(self._mixer or _("No mixer."), 1)
-
-    def show_input(self):
-        n = len(self.input_prompt) + 1
-        s = cut(self.input_string, self.win_status.cols - n, left=True)
-        APP.status("%s%s " % (self.input_prompt, s))
-
-    def start_input(self, prompt="", data="", colon=True):
-        self.input_mode = 1
-        cursor(1)
-        APP.keymapstack.push(self.input_keymap)
-        self.input_prompt = prompt + (": " if colon else "")
-        self.input_string = data
-        self.show_input()
-
-    def do_input(self, *args):
-        if self.do_input_hook:
-            return self.do_input_hook(*args)
-        ch = args[0] if args else None
-        if ch in [8, 127]:  # backspace
-            self.input_string = self.input_string[:-1]
-        elif ch == 9 and self.complete_input_hook:
-            self.input_string = self.complete_input_hook(self.input_string)
-        elif ch == 21:  # C-u
-            self.input_string = ""
-        elif ch == 23:  # C-w
-            self.input_string = re.sub(r"((.* )?)\w.*", r"\1",
-                    self.input_string)
-        elif ch:
-            self.input_string = "%s%c" % (self.input_string, ch)
-        self.show_input()
-
-    def stop_input(self, *args):
-        self.input_mode = 0
-        cursor(0)
-        APP.keymapstack.pop()
-        if not self.input_string:
-            APP.status(_("cancel"), 1)
-        elif self.stop_input_hook:
-            self.stop_input_hook(*args)
-        self.do_input_hook = self.stop_input_hook = None
-        self.complete_input_hook = None
-
-    def cancel_input(self):
-        self.input_string = ""
-        self.stop_input()
-
-    def quit(self, status=0):
-        self.player.stop(quiet=True)
-        sys.exit(status)
-
-    def handler_resize(self, _sig, _frame):
-        # curses trickery
-        while True:
-            try:
-                curses.endwin()
-            except Exception:
-                time.sleep(1)
-            else:
-                break
-        self.w.refresh()
-        self.win_root.resize()
-        self.win_root.update()
-
-    def handler_quit(self, _sig, _frame):
-        self.quit(1)
-
-
 class Mixer(object):
     def __init__(self):
         self._channels = []
@@ -1789,6 +1748,47 @@ class PulseMixer(Mixer):
 
     def cue(self, inc):
         self.set('%+d' % inc)
+
+
+class Stack(object):
+    def __init__(self):
+        self.items = []
+
+    def push(self, item):
+        self.items.append(item)
+
+    def pop(self):
+        return self.items.pop()
+
+
+class KeymapStack(Stack):
+    def process(self, code):
+        for keymap in reversed(self.items):
+            if keymap and keymap.process(code):
+                break
+
+
+class Keymap(object):
+    def __init__(self):
+        self.methods = [None] * curses.KEY_MAX
+
+    def bind(self, key, method, args=None):
+        if isinstance(key, (tuple, list)):
+            for i in key:
+                self.bind(i, method, args)
+            return
+        if isinstance(key, (str, bytes)):
+            key = ord(key)
+        self.methods[key] = (method, args)
+
+    def process(self, key):
+        if self.methods[key] is None:
+            return False
+        method, args = self.methods[key]
+        if args is None:
+            args = (key, )
+        method(*args)
+        return True
 
 
 def get_tag(pathname):
