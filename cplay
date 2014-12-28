@@ -1804,7 +1804,7 @@ def get_tag(pathname):
         tags = [metadata.get('tracknumber'),
                 metadata.get('artist'),
                 metadata.get('title', metadata.get('album'))]
-        if len(tags[0][0]) == 1:  # pad single digit track number
+        if tags[0] and len(tags[0][0]) == 1:  # pad single digit track number
             tags[0][0] = tags[0][0].rjust(2, '0')
         result = ' - '.join(tag[0] for tag in tags if tag and tag[0])
         result = result.encode(sys.getfilesystemencoding())
