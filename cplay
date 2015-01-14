@@ -1442,11 +1442,12 @@ class Player(object):
             return
         if self.paused:
             self.toggle_pause(quiet)
-        try:
-            self._proc.terminate()
-        except OSError as err:
-            APP.status(err, 2)
-            pass
+        if self.poll() is None:
+            try:
+                self._proc.terminate()
+            except OSError as err:
+                APP.status(err, 2)
+                pass
         self.stopped = True
         if not quiet:
             self.update_status()
