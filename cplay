@@ -1301,6 +1301,8 @@ class PlaylistWindow(TagListWindow):
         else:
             current_entry.tagged = False
             del self.buffer[self.bufptr]
+        if self.active_entry not in self.buffer:
+            self.active_entry = None
         if self.random:
             self.random_prev = self.not_tagged(self.random_prev)
             self.random_next = self.not_tagged(self.random_next)
