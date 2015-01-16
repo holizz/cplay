@@ -18,4 +18,6 @@ recursive-all recursive-install recursive-clean:
 	done
 
 lint:
-	pylint --indent-string='    ' --disable=missing-docstring,bad-continuation cplay
+	pylint --indent-string='    ' \
+		--disable=missing-docstring,bad-continuation,star-args \
+		--extension-pkg-whitelist=alsaaudio cplay

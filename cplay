@@ -510,6 +510,7 @@ class TabWindow(Window):
         keymap = Keymap()
         keymap.bind('\t', self.change_window, ())  # tab
         keymap.bind('h', self.help, ())
+        keymap.bind('D', self.win_playlist.command_delete_all, ())
         APP.keymapstack.push(keymap)
         APP.keymapstack.push(self.children[self.active_child].keymap)
         self.win_last = self.children[self.active_child]
@@ -731,16 +732,16 @@ class HelpWindow(ListWindow):
   Tab             : filelist/playlist  --------
   n, p            : next/prev track    a     : add (tagged) to playlist
   z, x            : toggle pause/stop  s, S  : recursive search, toggle sort
-                                       BS, o : goto parent/specified dir
-  Left, Right,                         m, '  : set/get bookmark
-  C-f, C-b    : seek forward/backward
-  C-a, C-e    : restart/end track      Playlist
-  C-s, C-r, / : isearch                --------
-  C-g, Esc    : cancel                 d, D  : delete (tagged) tracks/playlist
-  1..9, +, -  : volume control         m, M  : move tagged tracks after/before
-  c, v        : counter/volume mode    r, R  : toggle repeat/Random mode
-  <, >        : horizontal scrolling   s, S  : shuffle/Sort playlist
-  C-l, l      : refresh, list mode     w, @  : write playlist, jump to active
+  Left, Right,                         BS, o : goto parent/specified dir
+  C-f, C-b    : seek forward/backward  m, '  : set/get bookmark
+  C-a, C-e    : restart/end track
+  C-s, C-r, / : isearch                Playlist
+  C-g, Esc    : cancel                 --------
+  1..9, +, -  : volume control         d     : delete (tagged) tracks
+  c, v        : counter/volume mode    m, M  : move tagged tracks after/before
+  <, >        : horizontal scrolling   r, R  : toggle repeat/Random mode
+  C-l, l      : refresh, list mode     s, S  : shuffle/Sort playlist
+  D           : clear playlist         w, @  : write playlist, jump to active
   h, q, Q     : help, quit?, Quit!     X     : stop playlist after each track
 """).splitlines()
 
@@ -1130,7 +1131,6 @@ class PlaylistWindow(TagListWindow):
         self.keymap.bind(['\n', curses.KEY_ENTER],
                          self.command_play, ())
         self.keymap.bind('d', self.command_delete, ())
-        self.keymap.bind('D', self.command_delete_all, ())
         self.keymap.bind('m', self.command_move, (True, ))
         self.keymap.bind('M', self.command_move, (False, ))
         self.keymap.bind('s', self.command_shuffle, ())
@@ -1315,7 +1315,7 @@ class PlaylistWindow(TagListWindow):
         self.random_next = []
         self.random_left = []
         self.active_entry = None
-        APP.status(_("Deleted playlist"), 1)
+        APP.status(_("Playlist cleared"), 1)
         self.update()
 
     def command_move(self, after):
@@ -1447,7 +1447,6 @@ class Player(object):
                 self._proc.terminate()
             except OSError as err:
                 APP.status(err, 2)
-                pass
         self.stopped = True
         if not quiet:
             self.update_status()
