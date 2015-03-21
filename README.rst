@@ -8,33 +8,33 @@ with simple filelist and playlist control.
 Dependencies
 ------------
 
--  Python 2.6+ http://www.python.org/
+-  `Python 2.6+ <http://www.python.org/>`_
 
 Music players supported (one of the first two provides support for most
 formats):
 
--  ``mplayer`` http://www.mplayerhq.hu/
--  ``gst123`` http://space.twc.de/~stefan/gst123.php
--  ``mpg321`` http://sourceforge.net/projects/mpg321/
--  ``mpg123`` http://www.mpg123.org/
--  ``madplay`` http://www.mars.org/home/rob/proj/mpeg/
--  ``ogg123`` http://www.vorbis.com/
--  ``splay`` http://splay.sourceforge.net/
--  ``mikmod`` http://www.mikmod.org/
--  ``xmp`` http://xmp.sf.net/
--  ``sox`` http://sox.sf.net/
--  ``speex`` http://www.speex.org/
+-  `mplayer <http://www.mplayerhq.hu/>`_
+-  `gst123 <http://space.twc.de/~stefan/gst123.php>`_
+-  `mpg321 <http://sourceforge.net/projects/mpg321/>`_
+-  `mpg123 <http://www.mpg123.org/>`_
+-  `madplay <http://www.mars.org/home/rob/proj/mpeg/>`_
+-  `ogg123 <http://www.vorbis.com/>`_
+-  `splay <http://splay.sourceforge.net/>`_
+-  `mikmod <http://www.mikmod.org/>`_
+-  `xmp <http://xmp.sf.net/>`_
+-  `sox <http://sox.sf.net/>`_
+-  `speex <http://www.speex.org/>`_
 
 Other optional components:
 
 -  reading metadata (tags):
 
-   -  ``mutagen`` https://bitbucket.org/lazka/mutagen
+   -  `mutagen <https://bitbucket.org/lazka/mutagen>`_
 
 -  volume control:
 
-   -  ``alsaaudio`` http://pyalsaaudio.sourceforge.net/
-   -  ``pulseaudio-utils`` specifically the ``pacmd`` command.
+   -  `alsaaudio <http://pyalsaaudio.sourceforge.net/>`_
+   -  ``pulseaudio-utils`` specifically the ``pacmd <command.>`_
 
 Installation
 ------------
