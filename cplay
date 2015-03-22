@@ -25,7 +25,7 @@ import re
 import sys
 import time
 import glob
-import string  # pylint: disable=deprecated-module
+import string
 import random
 import curses
 import getopt
@@ -1578,7 +1578,7 @@ class NoOffsetPlayer(Player):
         head = self.offset + 1
         self.set_position(head, 0)
 
-    def seek(self, *dummy):
+    def seek(self, *unused_args):
         return 1
 
 
