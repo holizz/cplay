@@ -34,7 +34,7 @@ Other optional components:
 -  volume control:
 
    -  `alsaaudio <http://pyalsaaudio.sourceforge.net/>`_
-   -  ``pulseaudio-utils`` specifically the ``pacmd <command.>`_
+   -  ``pulseaudio-utils``, specifically the ``pacmd`` command.
 
 Installation
 ------------
