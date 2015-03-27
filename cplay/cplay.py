@@ -108,7 +108,7 @@ class Application(object):
             self.keymapstack.process(ord(i))
 
     def setup(self):
-        if tty:
+        if tty is not None:
             self.tcattr = tty.tcgetattr(sys.stdin.fileno())
             tcattr = tty.tcgetattr(sys.stdin.fileno())
             tcattr[0] = tcattr[0] & ~(tty.IXON)
@@ -151,7 +151,7 @@ class Application(object):
             return
         if XTERM:
             sys.stderr.write("\033]0;%s\a" % "xterm")
-        if tty:
+        if tty is not None:
             tty.tcsetattr(sys.stdin.fileno(), tty.TCSADRAIN, self.tcattr)
         sys.stdout.write('\n')
         try:  # remove temporary files
@@ -224,19 +224,19 @@ class Application(object):
         self.delayed_play(self.win_playlist.change_active_entry(-1), 0)
 
     def seek(self, offset, relative):
-        if not self.player.entry:
+        if self.player.entry is not None:
             return
         self.player.seek(offset, relative)
         self.delayed_play(self.player.entry, self.player.offset)
 
     def toggle_pause(self):
-        if not self.player.entry:
+        if self.player.entry is not None:
             return
         if not self.player.stopped:
             self.player.toggle_pause()
 
     def toggle_stop(self):
-        if not self.player.entry:
+        if self.player.entry is not None:
             return
         if not self.player.stopped:
             self.player.stop()
@@ -639,7 +639,7 @@ class ListWindow(Window):
         self.insstr(cut(s, self.cols))
 
     def current(self):
-        if len(self.buffer) == 0:
+        if not self.buffer:
             return None
         if self.bufptr >= len(self.buffer):
             self.bufptr = len(self.buffer) - 1
@@ -833,7 +833,7 @@ class TagListWindow(ListWindow):
         else:
             s, part = line, ""
         results = glob.glob(os.path.expanduser(s) + "*")
-        if len(results) == 0:
+        if not results:
             return line
         elif len(results) == 1:
             lm = results[0]
@@ -1240,7 +1240,7 @@ class PlaylistWindow(TagListWindow):
                     self.random_left = self.buffer[:]
                 else:
                     return
-                if not new:
+                if new is None:
                     new = random.choice(self.random_left)
                     self.random_left.remove(new)
                 try:
@@ -1271,7 +1271,7 @@ class PlaylistWindow(TagListWindow):
 
     def command_jump_to_active(self):
         entry = self.active_entry
-        if not entry:
+        if entry is None:
             return
         self.bufptr = self.buffer.index(entry)
         self.update()
@@ -1280,7 +1280,7 @@ class PlaylistWindow(TagListWindow):
         if not self.buffer:
             return
         entry = self.active_entry
-        if entry:
+        if entry is not None:
             entry.active = False
         entry = self.current()
         entry.active = True
@@ -1472,7 +1472,7 @@ class Player(object):
 
     def read_fd(self, fd):
         self.buf = os.read(fd, 512)
-        if not self.tid:
+        if self.tid is None:
             self.parse_progress()
 
     def poll(self):
@@ -1505,7 +1505,7 @@ class Player(object):
         APP.progress(self.length and (float(self.offset) / self.length))
 
     def update_status(self):
-        if not self.entry:
+        if self.entry is None:
             APP.set_default_status("")
         elif self.stopped:
             APP.set_default_status(_("Stopped: %s") % self.entry.vp())
