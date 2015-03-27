@@ -6,7 +6,7 @@ SUBDIRS = po
 all: recursive-all
 
 install: recursive-install
-	install -c -m 755 cplay $(PREFIX)/bin
+	install -c -m 755 cplay/cplay.py $(PREFIX)/bin/cplay
 	install -c -m 644 cplay.1 $(PREFIX)/man/man1
 
 clean: recursive-clean
