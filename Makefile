@@ -18,4 +18,4 @@ recursive-all recursive-install recursive-clean:
 	done
 
 lint:
-	pylint cplay
+	pylint cplay/cplay.py
