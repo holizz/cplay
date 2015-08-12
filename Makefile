@@ -1,21 +1,19 @@
 PREFIX = /usr/local
 ENV = PREFIX=$(PREFIX)
-SUBDIRS = po
 .PHONY: clean lint
 
-all: recursive-all
-
 install: recursive-install
-	install -c -m 755 cplay/cplay.py $(PREFIX)/bin/cplay
+	install -c -m 755 cplay $(PREFIX)/bin/
 	install -c -m 644 cplay.1 $(PREFIX)/man/man1
 
 clean: recursive-clean
 
-recursive-all recursive-install recursive-clean:
-	@target=$@; \
-	for i in $(SUBDIRS); do \
-		(cd $$i && make $(ENV) $${target#recursive-}); \
-	done
-
+# pylint: R=refactor, C0103 == Invalid name
 lint:
-	pylint cplay/cplay.py
+	pep8 --ignore=E1,W1 \
+		cplay && \
+	pylint \
+		--indent-string='    ' \
+		--disable=missing-docstring,bad-continuation,star-args \
+		--extension-pkg-whitelist=alsaaudio \
+		cplay
