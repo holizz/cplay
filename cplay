@@ -98,7 +98,7 @@ class KeymapStack(Stack):
 # ------------------------------------------
 class Keymap:
     def __init__(self):
-        self.methods = [None] * curses.KEY_MAX
+	self.methods = {}
 
     def bind(self, key, method, args=None):
         if type(key) in (TupleType, ListType):
@@ -109,7 +109,7 @@ class Keymap:
         self.methods[key] = (method, args)
 
     def process(self, key):
-        if self.methods[key] is None: return 0
+	if key not in self.methods: return 0
         method, args = self.methods[key]
         if args is None: args = (key,)
         method(*args)
