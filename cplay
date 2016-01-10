@@ -318,8 +318,11 @@ class Window(object):
     def insstr(self, s):
         if not s:
             return
-        self.w.addstr(s[:-1])
-        self.w.hline(ord(s[-1]), 1)  # insch() work-around
+        try:
+            self.w.addstr(s[:-1])
+            self.w.hline(ord(s[-1]), 1)  # insch() work-around
+        except curses.error:
+            pass
 
     def __getattr__(self, name):
         return getattr(self.w, name)
@@ -1166,7 +1169,7 @@ class PlaylistWindow(TagListWindow):
     def add_m3u(self, line):
         if re.match(r'^(#.*)?$', line):
             return
-        if re.match(r'^(/|http://)', line):
+        if re.match(r'^(/|https?://)', line):
             self.append(PlaylistEntry(line))
         else:
             dirname = os.path.dirname(self.pathname)
@@ -1546,7 +1549,7 @@ class MPlayer(Player):
 
     def mplayer_send(self, arg):
         try:
-            os.write(self.stdin_w, arg + '\n')
+            os.write(self.stdin_w, (arg + '\n').encode('utf8'))
         except IOError:
             APP.status('ERROR: Cannot send commands to mplayer!', 3)
 
@@ -1569,7 +1572,7 @@ class NoOffsetPlayer(Player):
         head = self.offset + 1
         self.set_position(head, 0)
 
-    def seek(self, *unused_args):
+    def seek(self, *_unused_args):
         return 1
 
 
@@ -1664,20 +1667,21 @@ class Mixer(object):
 class OssMixer(Mixer):
     def __init__(self):
         import ossaudiodev
+        self._chmap = {
+            'PCM': ossaudiodev.SOUND_MIXER_PCM,
+            'Master': ossaudiodev.SOUND_MIXER_VOLUME}
         self._mixer = ossaudiodev.openmixer()
-        self._get, self._set = self._mixer.get, self._mixer.set
-        self._channels = [['PCM', ossaudiodev.SOUND_MIXER_PCM],
-                    ['Master', ossaudiodev.SOUND_MIXER_VOLUME]]
+        self._channels = ['PCM', 'Master']
         self.toggle()
 
     def get(self):
-        return self._get(self._channels[0][1])[0]
+        return self._mixer.get(self._chmap[self._channels[0]])[0]
 
     def set(self, level):
-        self._set(self._channels[0][1], (level, level))
+        self._mixer.set(self._chmap[self._channels[0]], (level, level))
 
     def __str__(self):
-        return '%s volume %s%%' % (self._channels[0][0], self.get())
+        return '%s volume %s%%' % (self._channels[0], self.get())
 
     def close(self):
         self._mixer.close()
@@ -1687,7 +1691,8 @@ class AlsaMixer(Mixer):
     def __init__(self):
         import alsaaudio
         self._Mixer = alsaaudio.Mixer
-        self._channels = ['PCM', 'Master']
+        self._channels = [name for name in ['PCM', 'Master']
+            if name in alsaaudio.mixers()]
         self._mixer = self._Mixer(self._channels[0])
 
     def toggle(self):
@@ -1708,7 +1713,7 @@ class AlsaMixer(Mixer):
 class PulseMixer(Mixer):
     def __init__(self):
         self._channels = ['Master']
-        self._sink = re.search(r'Sink #([0-9]+)', self._list_sinks()).group(1)
+        self._sink = re.search(b'Sink #([0-9]+)', self._list_sinks()).group(1)
         self.set(self.get())
 
     def _list_sinks(self):
@@ -1717,7 +1722,7 @@ class PulseMixer(Mixer):
                 stderr=subprocess.PIPE).communicate()[0]
 
     def get(self):
-        return int(re.search(r'Volume: .* ([0-9]+)%',
+        return int(re.search(b'Volume: .* ([0-9]+)%',
                 self._list_sinks()).group(1))
 
     def set(self, vol):
@@ -1770,7 +1775,7 @@ class Keymap(object):
 
 
 def get_tag(pathname):
-    if re.compile(r'^http://').match(pathname) or not os.path.exists(pathname):
+    if re.compile(r'^https?://').match(pathname) or not os.path.exists(pathname):
         return pathname
     result = None
     try:
@@ -1872,15 +1877,15 @@ PLAYERS = [
     FrameOffsetPlayer('ogg123 -q -v -k %d %s',
             r'\.ogg$'),
     FrameOffsetPlayer('splay -f -k %d %s',
-            r'(^http://|\.mp[123]$)', 38.28),
+            r'(^https?://|\.mp[123]$)', 38.28),
     FrameOffsetPlayer('mpg123 -q -v -k %d %s',
-            r'(^http://|\.mp[123]$)', 38.28),
+            r'(^https?://|\.mp[123]$)', 38.28),
     FrameOffsetPlayer('mpg321 -q -v -k %d %s',
-            r'(^http://|\.mp[123]$)', 38.28),
+            r'(^https?://|\.mp[123]$)', 38.28),
     TimeOffsetPlayer('madplay -v --display-time=remaining -s %d %s',
             r'\.mp[123]$'),
     MPlayer('mplayer -slave -vc null -vo null %s',
-            r'^http://|\.(mp[123cp+]|ogg|flac|spx|cdr|wav|aiff|ape|m4a|wma'
+            r'^https?://|\.(mp[123cp+]|ogg|flac|spx|cdr|wav|aiff|ape|m4a|wma'
             r'|mod|xm|fm|s3m|med|col|669|it|mtm|stm|au)$'),
     GSTPlayer('gst123 -x -k %d %s',
             r'\.(mp[123]|ogg|opus|oga|flac|wav|m4a|m4b|aiff)$'),
