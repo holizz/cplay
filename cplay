@@ -19,8 +19,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 """
 
-__version__ = 'cplay 1.50andreasvc'
-
 import os
 import re
 import sys
@@ -34,6 +32,8 @@ import signal
 import select
 import traceback
 import subprocess
+
+__version__ = 'cplay 1.50andreasvc'
 if sys.version_info[0] < 3:
     bytes = str  # pylint: disable=redefined-builtin,invalid-name
 
@@ -52,6 +52,7 @@ USAGE = '''Usage: %s [-nrRv] [ file | dir | playlist ] ...
   -r Toggles playlist repeat mode
   -R Toggles playlist random mode
   -v Toggles PCM and MASTER (default) volume control\n'''
+NOTRUNNING, TERMINATED, RUNNING = range(3)
 
 
 class Application(object):
@@ -155,7 +156,7 @@ class Application(object):
             self.win_filelist.listdir_maybe(now)
             if not self.player.stopped:
                 timeout = 0.5
-                if self.player.poll():
+                if self.player.poll() is TERMINATED:
                     self.player.stopped = True  # end of playlist hack
                     if not self.win_playlist.stop:
                         entry = self.win_playlist.change_active_entry(1)
@@ -1435,7 +1436,7 @@ class Player(object):
             return
         if self.paused:
             self.toggle_pause(quiet)
-        if self.poll() is None:
+        if self.poll() is RUNNING:
             try:
                 self._proc.terminate()
             except OSError as err:
@@ -1447,8 +1448,11 @@ class Player(object):
     def toggle_pause(self, quiet=False):
         if self._proc is None:
             return
-        self._proc.send_signal(
-                signal.SIGCONT if self.paused else signal.SIGSTOP)
+        toggle = signal.SIGCONT if self.paused else signal.SIGSTOP
+        try:
+            self._proc.send_signal(toggle)
+        except OSError:
+            return
         self.paused = not self.paused
         if not quiet:
             self.update_status()
@@ -1470,14 +1474,14 @@ class Player(object):
 
     def poll(self):
         if self.stopped or self._proc is None:
-            return 0
+            return NOTRUNNING  # there is no process.
         elif self._proc.poll() is not None:
             self._proc = None
             APP.set_default_status('')
             APP.counter(0, 0)
             APP.progress(0)
-            return True
-        return None  # process stil running.
+            return TERMINATED  # process termination detected.
+        return RUNNING  # process stil running.
 
     def seek(self, offset, relative):
         if relative:
