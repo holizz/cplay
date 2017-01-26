@@ -4,26 +4,29 @@ Description
 ``cplay`` is a minimalist music player with a textual user interface
 written in Python. It aims to provide a power-user-friendly interface
 with simple filelist and playlist control.
+Instead of building an elaborate database of your music library,
+``cplay`` allows you to quickly browse the filesystem and enqueue
+directories.
 
 Dependencies
 ------------
 
--  `Python 2.6+ <http://www.python.org/>`_
+- `Python 2.6+ <http://www.python.org/>`_
 
 Music players supported (one of the first two provides support for most
 formats):
 
--  `mplayer <http://www.mplayerhq.hu/>`_
--  `gst123 <http://space.twc.de/~stefan/gst123.php>`_
--  `mpg321 <http://sourceforge.net/projects/mpg321/>`_
--  `mpg123 <http://www.mpg123.org/>`_
--  `madplay <http://www.mars.org/home/rob/proj/mpeg/>`_
--  `ogg123 <http://www.vorbis.com/>`_
--  `splay <http://splay.sourceforge.net/>`_
--  `mikmod <http://www.mikmod.org/>`_
--  `xmp <http://xmp.sf.net/>`_
--  `sox <http://sox.sf.net/>`_
--  `speex <http://www.speex.org/>`_
+- various formats: `mplayer <http://www.mplayerhq.hu/>`_,
+  `gst123 <http://space.twc.de/~stefan/gst123.php>`_
+- mp3: `mpg321 <http://sourceforge.net/projects/mpg321/>`_,
+  `mpg123 <http://www.mpg123.org/>`_,
+  `madplay <http://www.mars.org/home/rob/proj/mpeg/>`_
+- ogg, flac: `ogg123 <http://www.vorbis.com/>`_
+- various: `splay <http://splay.sourceforge.net/>`_,
+  `mikmod <http://www.mikmod.org/>`_
+  `xmp <http://xmp.sf.net/>`_,
+  `sox <http://sox.sf.net/>`_,
+  `speex <http://www.speex.org/>`_
 
 Other optional components:
 
@@ -34,7 +37,7 @@ Other optional components:
 -  volume control:
 
    -  `alsaaudio <http://pyalsaaudio.sourceforge.net/>`_
-   -  ``pulseaudio-utils``, specifically the ``pacmd`` command.
+   -  ``pulseaudio-utils``, specifically the ``pactl`` command.
 
 Installation
 ------------
@@ -42,6 +45,10 @@ Installation
 ::
 
     $ make install
+
+In Debian/Ubuntu, the following install a selection of players and optional components::
+
+    $ sudo apt-get install mplayer gst123 mpg321 vorbis-tools mikmod xmp speex sox python-alsaaudio pulseaudio-utils
 
 Usage
 -----
@@ -67,4 +74,4 @@ local. For mpeg streaming, ``splay`` is recommended.
 It is also possible to pipe a playlist to ``cplay``, as stdin will be
 reopened on startup unless it is attached to a tty.
 
-Remote control via ``/tmp/cplay-control-$USER``; see ``lircrc``.
+Remote control via ``/tmp/cplay-control-$USER``; refer to the class FIFOControl for the list of recognized commands.
