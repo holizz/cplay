@@ -74,4 +74,4 @@ local. For mpeg streaming, ``splay`` is recommended.
 It is also possible to pipe a playlist to ``cplay``, as stdin will be
 reopened on startup unless it is attached to a tty.
 
-Remote control via ``/tmp/cplay-control-$USER``; refer to the class FIFOControl for the list of recognized commands.
+Remote control via ``/tmp/cplay-control-$USER`` -- refer to the class ``FIFOControl`` for the list of recognized commands.

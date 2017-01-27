@@ -30,18 +30,18 @@ import curses
 import getopt
 import signal
 import select
+import locale
 import traceback
 import subprocess
 
 __version__ = 'cplay 1.50andreasvc'
-if sys.version_info[0] < 3:
-    bytes = str  # pylint: disable=redefined-builtin,invalid-name
 
 try:
     import tty
 except ImportError:
     tty = None  # pylint: disable=invalid-name
 
+locale.setlocale(locale.LC_ALL, '')
 XTERM = re.search('rxvt|xterm', os.environ.get('TERM', ''))
 CONTROL_FIFO = '%s/cplay-control-%s' % (
         os.environ.get('TMPDIR', '/tmp'), os.environ['USER'])
@@ -63,7 +63,7 @@ class Application(object):
         self.input_string = ''
         self.do_input_hook = self.stop_input_hook = None
         self.complete_input_hook = self.restore_default_status = None
-        self.w = self.status = self.counter = None
+        self.screen = self.status = self.counter = None
         self.set_default_status = None
         self.win_status = self.win_root = self.win_tab = None
         self.win_filelist = self.win_playlist = None
@@ -104,14 +104,14 @@ class Application(object):
             tcattr = tty.tcgetattr(sys.stdin.fileno())
             tcattr[0] = tcattr[0] & ~(tty.IXON)
             tty.tcsetattr(sys.stdin.fileno(), tty.TCSANOW, tcattr)
-        self.w = curses.initscr()
+        self.screen = curses.initscr()
         curses.cbreak()
         curses.noecho()
         try:
             curses.meta(1)
         except:
             pass
-        cursor(0)
+        self.cursor(0)
         signal.signal(signal.SIGCHLD, signal.SIG_IGN)
         signal.signal(signal.SIGHUP, self.handler_quit)
         signal.signal(signal.SIGINT, self.handler_quit)
@@ -185,6 +185,12 @@ class Application(object):
             if self.control.fd in r:
                 self.control.handle_command()
 
+    def cursor(self, visibility):
+        try:
+            curses.curs_set(visibility)
+        except:
+            pass
+
     def play(self, entry, offset=0):
         self.play_tid = None
         if entry is None or offset is None:
@@ -246,7 +252,7 @@ class Application(object):
 
     def start_input(self, prompt='', data='', colon=True):
         self.input_mode = 1
-        cursor(1)
+        self.cursor(1)
         APP.keymapstack.push(self.input_keymap)
         self.input_prompt = prompt + (': ' if colon else '')
         self.input_string = data
@@ -271,7 +277,7 @@ class Application(object):
 
     def stop_input(self, *args):
         self.input_mode = 0
-        cursor(0)
+        self.cursor(0)
         APP.keymapstack.pop()
         if not self.input_string:
             APP.status('cancel', 1)
@@ -297,7 +303,7 @@ class Application(object):
                 time.sleep(1)
             else:
                 break
-        self.w.refresh()
+        self.screen.refresh()
         self.win_root.resize()
         self.win_root.update()
 
@@ -319,11 +325,8 @@ class Window(object):
     def insstr(self, s):
         if not s:
             return
-        try:
-            self.w.addstr(s[:-1])
-            self.w.hline(ord(s[-1]), 1)  # insch() work-around
-        except curses.error:
-            pass
+        self.w.addstr(s[:-1])
+        self.w.hline(ord(s[-1]), 1)  # insch() work-around
 
     def __getattr__(self, name):
         return getattr(self.w, name)
@@ -394,7 +397,7 @@ class StatusWindow(Window):
         self.refresh()
 
     def status(self, message, duration=0):
-        self.current_message = filter_unicode(str(message))
+        self.current_message = str(message)
         if self.tid:
             APP.timeout.remove(self.tid)
         if duration:
@@ -747,7 +750,7 @@ class ListEntry(object):
 
     def __str__(self):
         mark = '#' if self.tagged else ' '
-        return '%s %s%s' % (mark, filter_unicode(self.vp()), self.slash)
+        return '%s %s%s' % (mark, self.vp(), self.slash)
 
     def vp(self):
         return self.vps[0][1](self)
@@ -813,7 +816,7 @@ class TagListWindow(ListWindow):
         sys.stdin.readline()
         APP.win_root.update()
         APP.restore_default_status()
-        cursor(0)
+        APP.cursor(0)
 
     def complete_shell(self, line):
         return self.complete_generic(line, quote=True)
@@ -1764,7 +1767,7 @@ class Keymap(object):
             for i in key:
                 self.bind(i, method, args)
             return
-        if isinstance(key, (str, bytes)):
+        if isinstance(key, str):
             key = ord(key)
         self.methods[key] = (method, args)
 
@@ -1779,7 +1782,8 @@ class Keymap(object):
 
 
 def get_tag(pathname):
-    if re.compile(r'^https?://').match(pathname) or not os.path.exists(pathname):
+    if (re.compile(r'^https?://').match(pathname)
+            or not os.path.exists(pathname)):
         return pathname
     result = None
     try:
@@ -1819,21 +1823,6 @@ def cut(s, n, left=False):
         return '<%s' % s[-n + 1:]
     else:
         return '%s>' % s[:n - 1]
-
-
-def filter_unicode(s):
-    if isinstance(s, bytes):
-        return s.decode(sys.getfilesystemencoding(), 'replace').encode('utf8')
-    else:
-        return s.encode(sys.getfilesystemencoding(), 'replace').decode(
-                sys.getfilesystemencoding())
-
-
-def cursor(visibility):
-    try:
-        curses.curs_set(visibility)
-    except:
-        pass
 
 
 def main():
