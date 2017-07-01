@@ -198,7 +198,8 @@ class Application(object):
         self.player.stop(quiet=True)
         for player in PLAYERS:
             if (player.re_files.search(entry.pathname) and
-                    player.setup(entry, offset)):
+                    player.setup(entry,
+                        offset or entry.offset, entry.maxoffset)):
                 self.player = player
                 self.player.play()
                 return
@@ -451,7 +452,7 @@ class CounterWindow(Window):
 
     def toggle_mode(self):
         self.mode = not self.mode
-        tmp = ['elapsed', 'remaining'][self.mode]
+        tmp = 'remaining' if self.mode else 'elapsed'
         APP.status('Counting %s time' % tmp, 1)
         self.update()
 
@@ -747,6 +748,8 @@ class ListEntry(object):
         self.pathname = pathname
         self.slash = '/' if directory else ''
         self.tagged = False
+        self.offset = 0
+        self.maxoffset = None
 
     def __str__(self):
         mark = '#' if self.tagged else ' '
@@ -766,10 +769,14 @@ class ListEntry(object):
 
 
 class PlaylistEntry(ListEntry):
-    def __init__(self, pathname):
+    def __init__(self, pathname,
+            displayname=None, offset=0, maxoffset=None):
         ListEntry.__init__(self, pathname)
         self.metadata = None
         self.active = False
+        if displayname is not None:
+            self.filename = self.metadata = displayname
+        self.offset, self.maxoffset = offset, maxoffset
 
     def vp_metadata(self):
         return self.metadata or self.read_metadata()
@@ -1143,7 +1150,8 @@ class PlaylistWindow(TagListWindow):
         TagListWindow.command_change_viewpoint(self, cls)
 
     def get_title(self):
-        space_out = lambda value, s: s if value else (' ' * len(s))
+        def space_out(value, s):
+            return s if value else (' ' * len(s))
         self.name = 'Playlist %s %s %s' % (
             space_out(self.repeat, '[repeat]'),
             space_out(self.random, '[random]'),
@@ -1158,15 +1166,23 @@ class PlaylistWindow(TagListWindow):
     def add_dir(self, directory):
         try:
             filenames = sorted(os.listdir(directory))
-            subdirs = []
+            # heuristic: if there are any playlists,
+            # do not add individual files to avoid duplicates
+            foundplaylist = False
             for filename in filenames:
-                pathname = os.path.join(directory, filename)
-                if valid_song(filename):
-                    self.append(PlaylistEntry(pathname))
+                if valid_playlist(filename):
+                    pathname = os.path.join(directory, filename)
+                    self.add_playlist(pathname)
+                    foundplaylist = True
+            if not foundplaylist:
+                for filename in filenames:
+                    if valid_song(filename):
+                        pathname = os.path.join(directory, filename)
+                        self.append(PlaylistEntry(pathname))
+            for filename in filenames:
                 if os.path.isdir(pathname):
-                    subdirs.append(pathname)
-            for subdir in subdirs:
-                self.add_dir(subdir)
+                    pathname = os.path.join(directory, filename)
+                    self.add_dir(pathname)
         except:
             APP.status(traceback.format_exc(), 2)
 
@@ -1185,9 +1201,51 @@ class PlaylistWindow(TagListWindow):
         if m:
             self.append(PlaylistEntry(m.group(2)))
 
+    def add_cue(self, pathname):
+        tracks = []
+        artist = album = ''
+        dirname = os.path.dirname(pathname)
+        with open(pathname) as inp:
+            for line in inp:
+                keyword, args = line.strip().split(' ', 1)
+                if keyword == 'FILE':
+                    filename = args.rsplit(' ', 1)[0].strip('"\'')
+                elif keyword == 'TRACK':
+                    trackno = args.split(' ', 1)[0]
+                    tracks.append({'filename': filename, 'no': trackno})
+                elif keyword == 'TITLE':
+                    if tracks:
+                        tracks[-1]['title'] = args.strip('"\'')
+                    else:
+                        album = args.strip('"\'')
+                elif keyword == 'PERFORMER':
+                    if tracks:
+                        tracks[-1]['artist'] = args.strip('"\'')
+                    else:
+                        artist = args.strip('"\'')
+                elif line.strip().startswith('INDEX 01') and tracks:
+                    mins, secs, frames = args.split(' ')[1].split(':')
+                    tracks[-1]['start'] = (int(mins) * 60 + int(secs)
+                            + float(frames) / 75)
+                    if len(tracks) > 1 and tracks[-2].get('end') is None:
+                        tracks[-2]['end'] = tracks[-1]['start']
+        for n, track in enumerate(tracks):
+            trackno = track.get('no', '%2d' % (n + 1))
+            title = track.get('title', track['filename'])
+            metadata = ' - '.join(a for a in
+                    (trackno, track.get('artist', artist), title, album) if a)
+            self.append(PlaylistEntry(
+                    os.path.join(dirname, track['filename']),
+                    displayname=metadata,
+                    offset=track.get('start', 0),
+                    maxoffset=track.get('end', None)))
+
     def add_playlist(self, pathname):
         self.pathname = pathname
-        if re.search(r'\.m3u$', pathname, re.IGNORECASE):
+        if re.search(r'\.cue$', pathname, re.IGNORECASE):
+            self.add_cue(pathname)
+            return
+        elif re.search(r'\.m3u$', pathname, re.IGNORECASE):
             f = self.add_m3u
         elif re.search(r'\.pls$', pathname, re.IGNORECASE):
             f = self.add_pls
@@ -1400,9 +1458,10 @@ class Player(object):
         self.entry = self.time_setup = None
         self.tid = self.argv = self._proc = None
         self.offset = self.step = self.length = 0
+        self.maxoffset = 0
         self.buf = ''
 
-    def setup(self, entry, offset):
+    def setup(self, entry, offset, maxoffset=None):
         self.argv = self.commandline.split()
         self.argv[0] = which(self.argv[0])
         for i in range(len(self.argv)):
@@ -1412,6 +1471,7 @@ class Player(object):
                 self.argv[i] = str(offset * self.fps)
         self.entry = entry
         self.offset = offset
+        self.maxoffset = maxoffset
         if offset == 0:
             APP.progress(0)
             self.offset = self.length = 0
@@ -1463,9 +1523,21 @@ class Player(object):
     def parse_progress(self):
         if self.stopped or self.step:
             self.tid = None
-        else:
-            self.parse_buf()
-            self.tid = APP.timeout.add(1.0, self.parse_progress)
+            return
+        self.parse_buf()
+        # did we reach end of song in a cue file?
+        if self.maxoffset and self.offset >= self.maxoffset:
+            maxoffset = self.maxoffset
+            pathname = self.entry.pathname
+            entry = APP.win_playlist.change_active_entry(1)
+            # keep playing if next song from cue file, otherwise restart player
+            if not entry:
+                self.stopped = True
+            elif pathname != entry.pathname or maxoffset != entry.offset:
+                APP.play(entry)
+            else:
+                pass
+        self.tid = APP.timeout.add(1.0, self.parse_progress)
 
     def parse_buf(self):
         raise NotImplementedError
@@ -1517,8 +1589,7 @@ class Player(object):
 
 
 class FrameOffsetPlayer(Player):
-    re_progress = re.compile(
-            br'Time.*\s(\d+):(\d+).*\[(\d+):(\d+)')
+    re_progress = re.compile(br'Time.*\s(\d+):(\d+).*\[(\d+):(\d+)')
 
     def parse_buf(self):
         match = self.re_progress.search(self.buf)
@@ -1546,7 +1617,8 @@ class MPlayer(Player):
 
     def play(self):
         Player.play(self)
-        self.mplayer_send('seek %d 2\n' % self.offset)
+        # seek <value> 2: seek to absolute position <value> (seconds)
+        self.mplayer_send('seek %g 2\n' % self.offset)
 
     def parse_buf(self):
         match = self.re_progress.search(self.buf)
@@ -1562,8 +1634,8 @@ class MPlayer(Player):
 
 
 class GSTPlayer(Player):
-    re_progress = re.compile(br'Time: (\d+):(\d+):(\d+)\.\d+'
-            br' of (\d+):(\d+):(\d+)\.\d+')
+    re_progress = re.compile(
+            br'Time: (\d+):(\d+):(\d+)\.\d+ of (\d+):(\d+):(\d+)\.\d+')
 
     def parse_buf(self):
         match = self.re_progress.search(self.buf)
@@ -1807,7 +1879,7 @@ def valid_song(name):
 
 
 def valid_playlist(name):
-    return re.search(r'\.(m3u|pls)$', name, re.IGNORECASE)
+    return re.search(r'\.(m3u|pls|cue)$', name, re.IGNORECASE)
 
 
 def which(program):
@@ -1819,10 +1891,7 @@ def which(program):
 def cut(s, n, left=False):
     if len(s) <= n:
         return s
-    elif left:
-        return '<%s' % s[-n + 1:]
-    else:
-        return '%s>' % s[:n - 1]
+    return ('<%s' % s[-n + 1:]) if left else ('%s>' % s[:n - 1])
 
 
 def main():
@@ -1877,6 +1946,9 @@ PLAYERS = [
             r'(^https?://|\.mp[123]$)', 38.28),
     TimeOffsetPlayer('madplay -v --display-time=remaining -s %d %s',
             r'\.mp[123]$'),
+    # raw FLAC workaround.
+    # https://lists.mplayerhq.hu/pipermail/mplayer-users/2010-November/081557.html
+    MPlayer('mplayer -slave -vc null -vo null -demuxer lavf %s', r'\.flac$'),
     MPlayer('mplayer -slave -vc null -vo null %s',
             r'^https?://|\.(mp[123cp+]|ogg|flac|spx|cdr|wav|aiff|ape|m4a|wma'
             r'|mod|xm|fm|s3m|med|col|669|it|mtm|stm|au)$'),

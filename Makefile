@@ -10,10 +10,10 @@ clean: recursive-clean
 
 # pylint: R=refactor, C0103 == Invalid name
 lint:
-	pep8 --ignore=E1,W1 \
+	pep8 --ignore=E1,W1,W503 \
 		cplay && \
 	pylint \
 		--indent-string='    ' \
-		--disable=missing-docstring,bad-continuation,star-args \
+		--disable=missing-docstring,bad-continuation,star-args,invalid-name,bare-except \
 		--extension-pkg-whitelist=alsaaudio \
 		cplay
