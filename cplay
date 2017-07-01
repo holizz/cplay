@@ -198,8 +198,7 @@ class Application(object):
         self.player.stop(quiet=True)
         for player in PLAYERS:
             if (player.re_files.search(entry.pathname) and
-                    player.setup(entry,
-                        offset or entry.offset, entry.maxoffset)):
+                    player.setup(entry, offset or entry.offset)):
                 self.player = player
                 self.player.play()
                 return
@@ -1459,10 +1458,9 @@ class Player(object):
         self.entry = self.time_setup = None
         self.tid = self.argv = self._proc = None
         self.offset = self.step = self.length = 0
-        self.maxoffset = 0
         self.buf = ''
 
-    def setup(self, entry, offset, maxoffset=None):
+    def setup(self, entry, offset):
         self.argv = self.commandline.split()
         self.argv[0] = which(self.argv[0])
         for i in range(len(self.argv)):
@@ -1472,7 +1470,6 @@ class Player(object):
                 self.argv[i] = str(offset * self.fps)
         self.entry = entry
         self.offset = offset
-        self.maxoffset = maxoffset
         if offset == 0:
             APP.progress(0)
             self.offset = self.length = 0
@@ -1527,8 +1524,8 @@ class Player(object):
             return
         self.parse_buf()
         # did we reach end of song in a cue file?
-        if self.maxoffset and self.offset >= self.maxoffset:
-            maxoffset = self.maxoffset
+        if self.entry.maxoffset and self.offset >= self.entry.maxoffset:
+            maxoffset = self.entry.maxoffset
             pathname = self.entry.pathname
             entry = APP.win_playlist.change_active_entry(1)
             # keep playing if next song from cue file, otherwise restart player
@@ -1536,8 +1533,6 @@ class Player(object):
                 self.stopped = True
             elif pathname != entry.pathname or maxoffset != entry.offset:
                 APP.play(entry)
-            else:
-                pass
         self.tid = APP.timeout.add(1.0, self.parse_progress)
 
     def parse_buf(self):
