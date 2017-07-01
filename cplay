@@ -1527,12 +1527,20 @@ class Player(object):
         if self.entry.maxoffset and self.offset >= self.entry.maxoffset:
             maxoffset = self.entry.maxoffset
             pathname = self.entry.pathname
-            entry = APP.win_playlist.change_active_entry(1)
+            if APP.win_playlist.stop:
+                entry = None
+            else:
+                entry = APP.win_playlist.change_active_entry(1)
             # keep playing if next song from cue file, otherwise restart player
             if not entry:
-                self.stopped = True
+                self.stop(quiet=True)
+                self.tid = None
+                return
             elif pathname != entry.pathname or maxoffset != entry.offset:
                 APP.play(entry)
+            else:
+                self.entry = entry
+                self.update_status()
         self.tid = APP.timeout.add(1.0, self.parse_progress)
 
     def parse_buf(self):
