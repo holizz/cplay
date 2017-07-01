@@ -1249,8 +1249,9 @@ class PlaylistWindow(TagListWindow):
             f = self.add_m3u
         elif re.search(r'\.pls$', pathname, re.IGNORECASE):
             f = self.add_pls
-        for line in open(pathname):
-            f(line.strip())
+        with open(pathname) as inp:
+            for line in inp:
+                f(line.strip())
 
     def add(self, pathname, quiet=False):
         try:
@@ -1739,45 +1740,55 @@ class Mixer(object):
     def toggle(self):
         self._channels.append(self._channels.pop(0))
 
-    def __str__(self):
-        return '%s volume %s%%' % (self._channels[0], self.get())
-
 
 class OssMixer(Mixer):
     def __init__(self):
         import ossaudiodev
+        self._openmixer = ossaudiodev.openmixer
         self._chmap = {
             'PCM': ossaudiodev.SOUND_MIXER_PCM,
             'Master': ossaudiodev.SOUND_MIXER_VOLUME}
-        self._mixer = ossaudiodev.openmixer()
-        self._channels = ['PCM', 'Master']
-        self.toggle()
+        self._channels = [(name, mixer)
+                for mixer in glob.glob('/dev/mixer*')
+                    for name in ['PCM', 'Master']]
+        self._mixer = ossaudiodev.openmixer(self._channels[0][1])
+
+    def toggle(self):
+        self._channels.append(self._channels.pop(0))
+        self._mixer.close()
+        self._mixer = self._openmixer(self._channels[0][1])
 
     def get(self):
-        return self._mixer.get(self._chmap[self._channels[0]])[0]
+        return self._mixer.get(self._chmap[self._channels[0][0]])[0]
 
     def set(self, level):
-        self._mixer.set(self._chmap[self._channels[0]], (level, level))
-
-    def __str__(self):
-        return '%s volume %s%%' % (self._channels[0], self.get())
+        self._mixer.set(self._chmap[self._channels[0][0]], (level, level))
 
     def close(self):
         self._mixer.close()
+
+    def __str__(self):
+        return 'volume %s%% (OSS %s:%s)' % (
+                self.get(), self._channels[0][0], self._channels[0][1])
 
 
 class AlsaMixer(Mixer):
     def __init__(self):
         import alsaaudio
         self._Mixer = alsaaudio.Mixer
-        self._channels = [name for name in ['PCM', 'Master']
-            if name in alsaaudio.mixers()]
-        self._mixer = self._Mixer(self._channels[0])
+        self._channels = [(name, cardindex)
+            for cardindex, _card in enumerate(alsaaudio.cards())
+                for name in alsaaudio.mixers(cardindex)
+                if 'Capture Volume' not in
+                self._Mixer(name, cardindex=cardindex).volumecap()]
+        self._mixer = self._Mixer(
+                control=self._channels[0][0], cardindex=self._channels[0][1])
 
     def toggle(self):
         self._channels.append(self._channels.pop(0))
         self._mixer.close()
-        self._mixer = self._Mixer(self._channels[0])
+        self._mixer = self._Mixer(
+                control=self._channels[0][0], cardindex=self._channels[0][1])
 
     def get(self):
         return self._mixer.getvolume()[0]
@@ -1788,15 +1799,19 @@ class AlsaMixer(Mixer):
     def close(self):
         self._mixer.close()
 
+    def __str__(self):
+        return 'volume %s%% (ALSA %s:%s) ' % (
+                self.get(), self._channels[0][0], self._channels[0][1])
+
 
 class PulseMixer(Mixer):
     def __init__(self):
-        self._channels = ['Master']
-        self._sink = re.search(b'Sink #([0-9]+)', self._list_sinks()).group(1)
+        self._channels = [('Master', sink) for sink
+                in re.findall(b'Sink #([0-9]+)', self._list_sinks())]
         self.set(self.get())
 
     def _list_sinks(self):
-        return subprocess.Popen(['pactl', 'list', 'sinks'],
+        return subprocess.Popen(['pactl', 'list'],
                 shell=False, stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE).communicate()[0]
 
@@ -1806,10 +1821,15 @@ class PulseMixer(Mixer):
 
     def set(self, vol):
         subprocess.check_call([
-                'pactl', '--', 'set-sink-volume', self._sink, '%s%%' % vol])
+                'pactl', '--', 'set-sink-volume', self._channels[0][1],
+                '%s%%' % vol])
 
     def cue(self, inc):
         self.set('%+d' % inc)
+
+    def __str__(self):
+        return 'volume %s%% (Pulse %s %s)' % (self.get(),
+                self._channels[0][0], self._channels[0][1])
 
 
 class Stack(object):
@@ -1934,7 +1954,7 @@ def main():
         traceback.print_exc()
 
 
-MIXERS = [OssMixer, AlsaMixer, PulseMixer]
+MIXERS = [PulseMixer, AlsaMixer, OssMixer]
 PLAYERS = [
     FrameOffsetPlayer('ogg123 -q -v -k %d %s',
             r'\.ogg$'),
