@@ -1179,8 +1179,8 @@ class PlaylistWindow(TagListWindow):
                         pathname = os.path.join(directory, filename)
                         self.append(PlaylistEntry(pathname))
             for filename in filenames:
+                pathname = os.path.join(directory, filename)
                 if os.path.isdir(pathname):
-                    pathname = os.path.join(directory, filename)
                     self.add_dir(pathname)
         except:
             APP.status(traceback.format_exc(), 2)
