@@ -3,7 +3,7 @@
 .\" It was originally written for Debian GNU/Linux (but may be used
 .\" by others).
 .\"
-.TH CPLAY 1 "November 2002"
+.TH CPLAY 1 "September 2014"
 
 .SH NAME
 .PP
@@ -16,25 +16,22 @@ cplay \- a front-end for various audio players
 .SH DESCRIPTION
 .PP
 .B cplay
-is a front-end for various audio players. It aims to provide a
-user-friendly interface with simple filelist and playlist
-control.  Invoking
+is a front-end for various audio players. It aims to provide a minimal
+interface with simple filelist and playlist control. Invoking
 .B cplay
-without any options puts you in the filelist in which you
-can navigate around looking for audio files.  When you
-specify an audio file,
-.B cplay
-automatically adds it to the playlist which can be accessed
-by pressing the tabulator key.
+without any options puts you in the filelist in which you can navigate around
+with the arrow keys looking for audio files.  When you select an audio file, it
+can either be played directly (press enter), or added to the playlist
+(press 'a'). The playlist can be accessed by pressing the tab key.
 .PP
-Use 'h' to display the help window.
+Use 'h' to display the help window explaining other keyboard shortcuts.
 .PP
-Shell command-lines are executed with tagged or current entries
-as positional parameters, which means that "$@" might be useful.
+Shell command lines can be executed with tagged or current entries as
+positional parameters by specifying "$@".
 .PP
-Currently, the following audio formats are supported: MP3 (through
-mpg321, splay, mpg123 or madplay), Ogg Vorbis (through ogg123), and
-various module-formats (through mikmod and xmp).
+Currently, the following audio formats are supported: MP3 (through mpg321,
+splay, mpg123 or madplay), Ogg Vorbis (through ogg123), and various other
+formats (through mplayer, gst123, mikmod, and xmp).
 
 .SH OPTIONS
 .IP \fB\-n
@@ -46,35 +43,56 @@ Toggles playlist \fIrandom\fP mode
 .IP \fB\-v
 Toggles PCM and MASTER (default) volume control
 
+.SH REMOTE CONTROL FILE
+.B cplay
+can be controlled through a FIFO.
+.PP
+Available commands:
+.PP
+play
+.br
+stop
+.br
+pause
+.br
+next
+.br
+prev
+.br
+empty
+.br
+quit
+.br
+forward \fIseconds\fR
+.br
+backward \fIseconds\fR
+.br
+add \fIfile\fR
+.br
+volume set \fIpercentage\fR
+.br
+macro \fIname\fR
+.PP
+Example:
+.PP
+\fBecho pause >/tmp/cplay-control-$USER\fB
+
 .SH SEE ALSO
 .PP
+.BR mplayer (1),
+.BR gst123 (1),
 .BR ogg123 (1),
 .BR mpg123 (1),
 .BR mpg321 (1),
 .BR splay (1),
 .BR madplay (1),
-.BR mikmod (1),
-.BR xmp (1),
-.BR play (1),
-.BR speexdec (1)
 
 .SH FILES
 .PP
-.I /var/tmp/cplay_control 
+.I /tmp/cplay-control-$USER
 - Optional remote control fifo.
-
-.I /etc/cplayrc
-- Optional configuration file.
-
-.I ~/.cplayrc
-- Optional configuration file.
 
 .SH AUTHOR
 .PP
 Ulf Betlehem <flu@iki.fi>
-
-.SH BUGS
-.PP
-In order for either mp3info (ID3) or ogginfo to work,
-both corresponding python modules have to be installed.
 
