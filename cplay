@@ -1168,20 +1168,21 @@ class PlaylistWindow(TagListWindow):
             # heuristic: if there are any playlists,
             # do not add individual files to avoid duplicates
             foundplaylist = False
-            for filename in filenames:
-                if valid_playlist(filename):
-                    pathname = os.path.join(directory, filename)
-                    self.add_playlist(pathname)
-                    foundplaylist = True
-            if not foundplaylist:
-                for filename in filenames:
-                    if valid_song(filename):
-                        pathname = os.path.join(directory, filename)
-                        self.append(PlaylistEntry(pathname))
+            songs, subdirs = [], []
             for filename in filenames:
                 pathname = os.path.join(directory, filename)
-                if os.path.isdir(pathname):
-                    self.add_dir(pathname)
+                if valid_playlist(filename):
+                    self.add_playlist(pathname)
+                    foundplaylist = True
+                elif valid_song(filename):
+                    songs.append(pathname)
+                elif os.path.isdir(filename):
+                    subdirs.append(pathname)
+            if not foundplaylist:
+                for pathname in songs:
+                    self.append(PlaylistEntry(pathname))
+            for pathname in subdirs:
+                self.add_dir(pathname)
         except:
             APP.status(traceback.format_exc(), 2)
 
